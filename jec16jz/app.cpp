@@ -67,7 +67,6 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 #define KD_TAIL            0.00F /* 尻尾用定数D */
 #define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
 
-
 /* sample_c4マクロ */
 //#define DEVICE_NAME     "ET0"  /* Bluetooth名 hrp2/target/ev3.h BLUETOOTH_LOCAL_NAMEで設定 */
 //#define PASS_KEY        "1234" /* パスキー    hrp2/target/ev3.h BLUETOOTH_PIN_CODEで設定 */
@@ -250,7 +249,7 @@ static int sonar_alert(void)
 //*****************************************************************************
 static void tail_control(signed int angle)
 {
-    float pwm = (float)pid_tail.calcControllValue(angle - ev3_motor_get_counts(tail_motor)); /* 比例制御 */
+    int pwm = (int)pid_tail.calcControllValue(angle - ev3_motor_get_counts(tail_motor)); /* 比例制御 */
     /* PWM出力飽和処理 */
     if (pwm > PWM_ABS_MAX)
     {

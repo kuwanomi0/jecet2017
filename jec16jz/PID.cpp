@@ -26,8 +26,6 @@ float PID::calcControllValue(int now_value) {
     //P制御計算
     p_control = now_value * m_P_coefficient;
 
-    // return p_control;
-
     //D制御計算
     m_d_pre = m_d_now;
     m_d_now = now_value;
