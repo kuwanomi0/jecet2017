@@ -11,6 +11,8 @@
 #include "ev3api.h"
 #include "app.h"
 #include "balancer.h"
+#include "BalancerCpp.h"        // <1>
+#include "PID.h"
 
 #if defined(BUILD_MODULE)
 #include "module_cfg.h"
@@ -44,24 +46,27 @@ static int      bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスター
 static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
-/* sample_c1マクロ */
-#define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define LIGHT_WHITE  600          /* 白色の光センサ値 */
-#define LIGHT_BLACK  25          /* 黒色の光センサ値 */
-#define LIGHT_TARGET 420
-/* sample_c2マクロ */
-#define SONAR_ALERT_DISTANCE 20 /* 超音波センサによる障害物検知距離[cm] */
-/* sample_c3マクロ */
-#define TAIL_ANGLE_STAND_UP  94 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_DRIVE      3 /* バランス走行時の角度[度] */
-#define KP_TAIL            2.50F
-#define KI_TAIL            0.00F
-#define KD_TAIL            0.00F
-#define PWM_ABS_MAX          60 /* 完全停止用モータ制御PWM絶対最大値 */
+/* 走行に関するマクロ */
+#define GYRO_OFFSET      0      /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
+#define RGB_WHITE      600      /* 白色のRGBセンサ合計値 */
+#define RGB_BLACK       25      /* 黒色のRGBセンサ合計値*/
+#define RGB_TARGET     420      /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_NULL         5      /* 何もないときのRGBセンサ合計値 */
+#define KP_WALK      0.08F      /* 走行用定数P */
+#define KI_WALK      0.01F      /* 走行用定数I */
+#define KD_WALK      0.04F      /* 走行用定数D */
 
-#define KP_WALK           0.08F
-#define KI_WALK           0.01F
-#define KD_WALK           0.04F
+/* 超音波センサーに関するマクロ */
+#define SONAR_ALERT_DISTANCE 20 /* 超音波センサによる障害物検知距離[cm] */
+
+/* 尻尾に関するマクロ */
+#define TAIL_ANGLE_STAND_UP   94 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
+#define KP_TAIL            2.50F /* 尻尾用定数P */
+#define KI_TAIL            0.00F /* 尻尾用定数I */
+#define KD_TAIL            0.00F /* 尻尾用定数D */
+#define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
+
 
 /* sample_c4マクロ */
 //#define DEVICE_NAME     "ET0"  /* Bluetooth名 hrp2/target/ev3.h BLUETOOTH_LOCAL_NAMEで設定 */
@@ -70,16 +75,15 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
-#define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
-#define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
+#define CALIB_FONT_WIDTH (6/* magic number*/)
+#define CALIB_FONT_HEIGHT (8/* magic number*/)
 
 /* 関数プロトタイプ宣言 */
 static int sonar_alert(void);
 static void tail_control(signed int angle);
 
-#include "BalancerCpp.h"        // <1>
+/* インスタンスの生成 */
 Balancer balancer;              // <1>
-#include "PID.h"
 PID pid_walk(KP_WALK, KI_WALK, KD_WALK); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 
@@ -89,16 +93,15 @@ void main_task(intptr_t unused)
     signed char forward;      /* 前後進命令 */
     signed char turn;         /* 旋回命令 */
     signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
-	rgb_raw_t rgb_level;
+	rgb_raw_t   rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
 
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-    ev3_lcd_draw_string("EV3way-ET test02", 0, CALIB_FONT_HEIGHT*1);
+    ev3_lcd_draw_string("EV3way-ET JEC16JZ", 0, CALIB_FONT_HEIGHT*1);
 
     /* センサー入力ポートの設定 */
     ev3_sensor_config(sonar_sensor, ULTRASONIC_SENSOR);
     ev3_sensor_config(color_sensor, COLOR_SENSOR);
-    // ev3_color_sensor_get_reflect(color_sensor); /* 反射率モード */ (TODO: RGBに変更)
     ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level);
     ev3_sensor_config(touch_sensor, TOUCH_SENSOR);
     ev3_sensor_config(gyro_sensor, GYRO_SENSOR);
@@ -151,15 +154,18 @@ void main_task(intptr_t unused)
 	while (1) {
 		int32_t motor_ang_l, motor_ang_r;
 		int gyro, volt;
+
 		if (ev3_button_is_pressed(BACK_BUTTON)) {
 			break;
 		}
+
 		ev3_led_set_color(LED_RED);
-		tail_control(TAIL_ANGLE_DRIVE);
+		tail_control(TAIL_ANGLE_DRIVE); /* 尻尾を走行位置に制御 */
 
-		ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level);
+		ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level); /* RGB取得 */
 
-		if((rgb_level.r + rgb_level.g + rgb_level.b) <= 5) {
+		/* 転倒時の停止処理 */
+		if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_NULL) {
 			break;
 		}
 
@@ -167,91 +173,31 @@ void main_task(intptr_t unused)
 			forward = turn = 0; /* 障害物を検知したら停止 */
 		}
 		else {
-			forward = 90;                           //ロボの速度
-			turn =  -pid_walk.calcControllValue(LIGHT_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
+			forward = 90;        /* ロボの速度 */
+			/* PID制御 */
+			turn =  -pid_walk.calcControllValue(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
 		}
 
+		/* 倒立振子制御API に渡すパラメータを取得する */
 		motor_ang_l = ev3_motor_get_counts(left_motor);
 		motor_ang_r = ev3_motor_get_counts(right_motor);
 		gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
 		volt = ev3_battery_voltage_mV();
-		balance_control(
-			(float)forward,
-			(float)turn,
-			(float)gyro,
-			(float)GYRO_OFFSET,
-			(float)motor_ang_l,
-			(float)motor_ang_r,
-			(float)volt,
-			(int8_t *)&pwm_L,
-			(int8_t *)&pwm_R);
+
+		/* 倒立振子制御APIを呼び出し、倒立走行するための */
+        /* 左右モータ出力値を得る */
+        balancer.setCommand(forward, turn);   // <1>
+        balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+        pwm_L = balancer.getPwmRight();       // <3>
+        pwm_R = balancer.getPwmLeft();        // <3>
+
+		/* 出力の設定 */
 		ev3_motor_set_power(left_motor, (int)pwm_L);
 		ev3_motor_set_power(right_motor, (int)pwm_R);
 
-		tslp_tsk(4);
+		tslp_tsk(4); /* 4msec周期起動 */
 	}
 
-    // while(1)
-    // {
-    //     int32_t motor_ang_l, motor_ang_r;
-    //     int gyro, volt;
-	//
-    //     if (ev3_button_is_pressed(BACK_BUTTON)) break;
-	//
-    //     tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
-	//
-    //     if (sonar_alert() == 1) /* 障害物検知 */
-    //     {
-    //         forward = turn = 0; /* 障害物を検知したら停止 */
-    //     }
-    //     else
-    //     {
-    //         forward = 80; /* 前進命令 */
-	// 		ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level);
-	// 		turn =  pid_walk.calcControllValue(LIGHT_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
-	// 		// if ((rgb_level.r + rgb_level.g + rgb_level.b) >= (LIGHT_WHITE + LIGHT_BLACK) / 2) {
-	// 			// turn =  pid_walk.calcControllValue(LIGHT_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b)); /* 左旋回命令 */
-	// 		// }
-	// 		// else {
-	// 			// turn = -pid_walk.calcControllValue(LIGHT_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b)); /* 右旋回命令 */
-	// 		// }
-    //     }
-	//
-    //     /* 倒立振子制御API に渡すパラメータを取得する */
-    //     motor_ang_l = ev3_motor_get_counts(left_motor);
-    //     motor_ang_r = ev3_motor_get_counts(right_motor);
-    //     gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-    //     volt = ev3_battery_voltage_mV();
-	//
-    //     /* 倒立振子制御APIを呼び出し、倒立走行するための */
-    //     /* 左右モータ出力値を得る */
-    //     balancer.setCommand(forward, turn);   // <1>
-    //     balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-    //     pwm_L = balancer.getPwmRight();       // <3>
-    //     pwm_R = balancer.getPwmLeft();        // <3>
-	//
-    //     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-    //     /* 出力0時に、その都度設定する */
-    //     if (pwm_L == 0)
-    //     {
-    //          ev3_motor_stop(left_motor, true);
-    //     }
-    //     else
-    //     {
-	// 		ev3_motor_set_power(left_motor, (int)pwm_L);
-	// 	}
-	//
-    //     if (pwm_R == 0)
-    //     {
-    //          ev3_motor_stop(right_motor, true);
-    //     }
-    //     else
-    //     {
-	// 		ev3_motor_set_power(right_motor, (int)pwm_R);
-    //     }
-	//
-    //     tslp_tsk(4); /* 4msec周期起動 */
-    // }
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
 
