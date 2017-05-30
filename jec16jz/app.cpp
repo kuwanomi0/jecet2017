@@ -93,7 +93,7 @@ void main_task(intptr_t unused)
     signed char forward;      /* 前後進命令 */
     signed char turn;         /* 旋回命令 */
     signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
-	rgb_raw_t   rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
+    rgb_raw_t   rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
 
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
@@ -151,52 +151,52 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
-	while (1) {
-		int32_t motor_ang_l, motor_ang_r;
-		int gyro, volt;
+    while (1) {
+    int32_t motor_ang_l, motor_ang_r;
+    int gyro, volt;
 
-		if (ev3_button_is_pressed(BACK_BUTTON)) {
-			break;
-		}
+    if (ev3_button_is_pressed(BACK_BUTTON)) {
+    break;
+    }
 
-		ev3_led_set_color(LED_RED);
-		tail_control(TAIL_ANGLE_DRIVE); /* 尻尾を走行位置に制御 */
+    ev3_led_set_color(LED_RED);
+    tail_control(TAIL_ANGLE_DRIVE); /* 尻尾を走行位置に制御 */
 
-		ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level); /* RGB取得 */
+    ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level); /* RGB取得 */
 
-		/* 転倒時の停止処理 */
-		if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_NULL) {
-			break;
-		}
+    /* 転倒時の停止処理 */
+    if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_NULL) {
+    break;
+    }
 
-		if (sonar_alert() == 1) {/* 障害物検知 */
-			forward = turn = 0; /* 障害物を検知したら停止 */
-		}
-		else {
-			forward = 90;        /* ロボの速度 */
-			/* PID制御 */
-			turn =  -pid_walk.calcControllValue(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
-		}
+    if (sonar_alert() == 1) {/* 障害物検知 */
+    forward = turn = 0; /* 障害物を検知したら停止 */
+    }
+    else {
+    forward = 90;        /* ロボの速度 */
+    /* PID制御 */
+    turn =  -pid_walk.calcControllValue(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
+    }
 
-		/* 倒立振子制御API に渡すパラメータを取得する */
-		motor_ang_l = ev3_motor_get_counts(left_motor);
-		motor_ang_r = ev3_motor_get_counts(right_motor);
-		gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-		volt = ev3_battery_voltage_mV();
+    /* 倒立振子制御API に渡すパラメータを取得する */
+    motor_ang_l = ev3_motor_get_counts(left_motor);
+    motor_ang_r = ev3_motor_get_counts(right_motor);
+    gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
+    volt = ev3_battery_voltage_mV();
 
-		/* 倒立振子制御APIを呼び出し、倒立走行するための */
+    /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
         balancer.setCommand(forward, turn);   // <1>
         balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
         pwm_L = balancer.getPwmRight();       // <3>
         pwm_R = balancer.getPwmLeft();        // <3>
 
-		/* 出力の設定 */
-		ev3_motor_set_power(left_motor, (int)pwm_L);
-		ev3_motor_set_power(right_motor, (int)pwm_R);
+    /* 出力の設定 */
+    ev3_motor_set_power(left_motor, (int)pwm_L);
+    ev3_motor_set_power(right_motor, (int)pwm_R);
 
-		tslp_tsk(4); /* 4msec周期起動 */
-	}
+    tslp_tsk(4); /* 4msec周期起動 */
+    }
 
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
