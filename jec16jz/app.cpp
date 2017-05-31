@@ -48,23 +48,23 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
 #define GYRO_OFFSET      0      /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define RGB_WHITE      600      /* 白色のRGBセンサ合計値 */
-#define RGB_BLACK       25      /* 黒色のRGBセンサ合計値*/
-#define RGB_TARGET     420      /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_WHITE      630      /* 白色のRGBセンサ合計値 */
+#define RGB_BLACK       30      /* 黒色のRGBセンサ合計値*/
+#define RGB_TARGET     460      /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL         5      /* 何もないときのRGBセンサ合計値 */
-#define KP_WALK      0.08F      /* 走行用定数P */
-#define KI_WALK      0.01F      /* 走行用定数I */
-#define KD_WALK      0.04F      /* 走行用定数D */
+#define KP_WALK      0.11F      /* 走行用定数P */
+#define KI_WALK      0.001F      /* 走行用定数I */
+#define KD_WALK      0.0005F      /* 走行用定数D */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20 /* 超音波センサによる障害物検知距離[cm] */
 
 /* 尻尾に関するマクロ */
-#define TAIL_ANGLE_STAND_UP   94 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_STAND_UP   92 /* 完全停止時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
-#define KP_TAIL            2.50F /* 尻尾用定数P */
-#define KI_TAIL            0.00F /* 尻尾用定数I */
-#define KD_TAIL            0.00F /* 尻尾用定数D */
+#define KP_TAIL            2.00F /* 尻尾用定数P */
+#define KI_TAIL            0.01F /* 尻尾用定数I */
+#define KD_TAIL            0.15F /* 尻尾用定数D */
 #define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
 
 /* sample_c4マクロ */
@@ -169,12 +169,13 @@ void main_task(intptr_t unused)
     }
 
     if (sonar_alert() == 1) {/* 障害物検知 */
-    forward = turn = 0; /* 障害物を検知したら停止 */
+        forward = turn = 0; /* 障害物を検知したら停止 */
     }
     else {
-    forward = 90;        /* ロボの速度 */
-    /* PID制御 */
-    turn =  -pid_walk.calcControllValue(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
+        forward = 80;        /* ロボの速度 */
+        /* PID制御 */
+        //  turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
+        turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
     }
 
     /* 倒立振子制御API に渡すパラメータを取得する */
@@ -184,11 +185,11 @@ void main_task(intptr_t unused)
     volt = ev3_battery_voltage_mV();
 
     /* 倒立振子制御APIを呼び出し、倒立走行するための */
-        /* 左右モータ出力値を得る */
-        balancer.setCommand(forward, turn);   // <1>
-        balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-        pwm_L = balancer.getPwmRight();       // <3>
-        pwm_R = balancer.getPwmLeft();        // <3>
+    /* 左右モータ出力値を得る */
+    balancer.setCommand(forward, turn);   // <1>
+    balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+    pwm_L = balancer.getPwmRight();       // <3>
+    pwm_R = balancer.getPwmLeft();        // <3>
 
     /* 出力の設定 */
     ev3_motor_set_power(left_motor, (int)pwm_L);
@@ -249,7 +250,7 @@ static int sonar_alert(void)
 //*****************************************************************************
 static void tail_control(signed int angle)
 {
-    int pwm = (int)pid_tail.calcControllValue(angle - ev3_motor_get_counts(tail_motor)); /* 比例制御 */
+    int pwm = (int)pid_tail.calcControl(angle - ev3_motor_get_counts(tail_motor)); /* 比例制御 */
     /* PWM出力飽和処理 */
     if (pwm > PWM_ABS_MAX)
     {
