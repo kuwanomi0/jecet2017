@@ -19,6 +19,7 @@
 #include "Motor.h"
 #include "Clock.h"
 #include "PID.h"
+#include "Distance.h"
 
 using namespace ev3api;
 
@@ -85,6 +86,7 @@ Clock*          clock;
 Balancer balancer;              // <1>
 PID pid_walk(KP_WALK, KI_WALK, KD_WALK); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
+Distance distance_way;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -179,7 +181,7 @@ void main_task(intptr_t unused)
         else {                                                /* TODO 01: glay検出用*/
             glay = 0;                                         /* TODO 01: glay検出用*/
         }                                                     /* TODO 01: glay検出用*/
-
+    if (distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount()) <= 6300) { /* TODO 02: 距離確認用 */
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
         }
@@ -192,16 +194,12 @@ void main_task(intptr_t unused)
             /* PID制御 */
             // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
             turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
-
-            // if ((rgb_level.r + rgb_level.g + rgb_level.b) >= RGB_TARGET)
-            // {
-            //     turn =  30; /* 左旋回命令 */
-            // }
-            // else
-            // {
-            //     turn = -30; /* 右旋回命令 */
-            // }
         }
+    }/* TODO 02: 距離確認用 */
+    else {/* TODO 02: 距離確認用 */
+        forward = 100;/* TODO 02: 距離確認用 */
+        turn = 70;/* TODO 02: 距離確認用 */
+    }/* TODO 02: 距離確認用 */
 
         /* 倒立振子制御API に渡すパラメータを取得する */
         motor_ang_l = leftMotor->getCount();
