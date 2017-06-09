@@ -17,6 +17,7 @@ public:
         ki = i_value; /*積分定数*/
         kd = d_value; /*微分定数*/
         diff[1] = 0;
+        integral = 0.0;
     }
     int calcControl(int now_value);
 };
