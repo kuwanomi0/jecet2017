@@ -38,13 +38,13 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define RGB_WHITE           600  /* 白色のRGBセンサの合計 */
+#define RGB_WHITE           500  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            20  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          330  /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          250  /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              5  /* 何もないときのセンサの合計 */
 #define KP_WALK         0.1200F  /* 走行用定数P */
 #define KI_WALK         0.0000F  /* 走行用定数I */
-#define KD_WALK         0.0009F  /* 走行用定数D */
+#define KD_WALK         0.1000F  /* 走行用定数D */
 #define FORWARD_K            75  /* ロボットの前進速度 */
 
 /* 超音波センサーに関するマクロ */
@@ -95,7 +95,7 @@ void main_task(intptr_t unused)
     int8_t    turn;         /* 旋回命令 */
     int8_t    pwm_L, pwm_R; /* 左右モータPWM出力 */
     rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
-    int32_t   glay = 0;     /* TODO 01: glay検出用テスト */
+    // int32_t   glay = 0;     /* TODO 01: glay検出用テスト */
 
     /* 各オブジェクトを生成・初期化する */
     touchSensor = new TouchSensor(PORT_1);
@@ -173,21 +173,21 @@ void main_task(intptr_t unused)
             break;
         }
 
-        if ( 90 <= rgb_level.b &&                             /* TODO 01: glay検出用*/
-            rgb_level.b <= 150 &&                             /* TODO 01: glay検出用*/
-            rgb_level.b * 2 > (rgb_level.r + rgb_level.g)) {  /* TODO 01: glay検出用*/
-            glay++;                                           /* TODO 01: glay検出用*/
-        }                                                     /* TODO 01: glay検出用*/
-        else {                                                /* TODO 01: glay検出用*/
-            glay = 0;                                         /* TODO 01: glay検出用*/
-        }                                                     /* TODO 01: glay検出用*/
-    if (distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount()) <= 6300) { /* TODO 02: 距離確認用 */
+    //     if ( 90 <= rgb_level.b &&                             /* TODO 01: glay検出用*/
+    //         rgb_level.b <= 150 &&                             /* TODO 01: glay検出用*/
+    //         rgb_level.b * 2 > (rgb_level.r + rgb_level.g)) {  /* TODO 01: glay検出用*/
+    //         glay++;                                           /* TODO 01: glay検出用*/
+    //     }                                                     /* TODO 01: glay検出用*/
+    //     else {                                                /* TODO 01: glay検出用*/
+    //         glay = 0;                                         /* TODO 01: glay検出用*/
+    //     }                                                     /* TODO 01: glay検出用*/
+    // // if (distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount()) <= 6300) { /* TODO 02: 距離確認用 */
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
         }
-        else if (glay >= 30) { /* TODO 01: glay検出用*/
-            turn = 13;         /* TODO 01: glay検出用*/
-        }                      /* TODO 01: glay検出用*/
+        // else if (glay >= 30) { /* TODO 01: glay検出用*/
+        //     turn = 13;         /* TODO 01: glay検出用*/
+        // }                      /* TODO 01: glay検出用*/
         else
         {
             forward = FORWARD_K; /* 前進命令 */
@@ -195,11 +195,11 @@ void main_task(intptr_t unused)
             // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
             turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
         }
-    }/* TODO 02: 距離確認用 */
-    else {/* TODO 02: 距離確認用 */
-        forward = 100;/* TODO 02: 距離確認用 */
-        turn = 70;/* TODO 02: 距離確認用 */
-    }/* TODO 02: 距離確認用 */
+    // }/* TODO 02: 距離確認用 */
+    // else {/* TODO 02: 距離確認用 */
+    //     forward = 100;/* TODO 02: 距離確認用 */
+    //     turn = 70;/* TODO 02: 距離確認用 */
+    // }/* TODO 02: 距離確認用 */
 
         /* 倒立振子制御API に渡すパラメータを取得する */
         motor_ang_l = leftMotor->getCount();

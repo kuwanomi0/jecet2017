@@ -9,7 +9,7 @@ int PID::calcControl(int now_value) {
     diff[0]   = diff[1];
     diff[1]   = now_value;
     if(diff[0] == diff[1]){
-        integral = 0.0;
+        integral = 0.0F;
     }
     else {
         integral += (diff[1] + diff[0]) / 2.0;
