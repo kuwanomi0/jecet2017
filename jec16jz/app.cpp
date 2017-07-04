@@ -157,7 +157,7 @@ void main_task(intptr_t unused)
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
-        int32_t gyro, volt;
+        int32_t gyro, volt, distance_now;
 
         if (ev3_button_is_pressed(BACK_BUTTON)) {
             break;
@@ -181,9 +181,11 @@ void main_task(intptr_t unused)
     //     else {                                                /* TODO 01: glay検出用*/
     //         glay = 0;                                         /* TODO 01: glay検出用*/
     //     }                                                     /* TODO 01: glay検出用*/
-    // // if (distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount()) <= 6300) { /* TODO 02: 距離確認用 */
+    distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
+    if (distance_now <= 20000) { /* TODO 02: 距離確認用 */
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
+            ev3_led_set_color(LED_RED);
         }
         // else if (glay >= 30) { /* TODO 01: glay検出用*/
         //     turn = 13;         /* TODO 01: glay検出用*/
@@ -195,11 +197,11 @@ void main_task(intptr_t unused)
             // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
             turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.r + rgb_level.g + rgb_level.b));
         }
-    // }/* TODO 02: 距離確認用 */
-    // else {/* TODO 02: 距離確認用 */
-    //     forward = 100;/* TODO 02: 距離確認用 */
-    //     turn = 70;/* TODO 02: 距離確認用 */
-    // }/* TODO 02: 距離確認用 */
+    }/* TODO 02: 距離確認用 */
+    else {/* TODO 02: 距離確認用 */
+        forward = 100;/* TODO 02: 距離確認用 */
+        turn = 70;/* TODO 02: 距離確認用 */
+    }/* TODO 02: 距離確認用 */
 
         /* 倒立振子制御API に渡すパラメータを取得する */
         motor_ang_l = leftMotor->getCount();
@@ -216,6 +218,7 @@ void main_task(intptr_t unused)
 
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
+        syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%3d\r", distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, (rgb_level.r + rgb_level.g + rgb_level.b));
 
         clock->sleep(4); /* 4msec周期起動 */
     }
