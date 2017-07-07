@@ -123,6 +123,7 @@ void main_task(intptr_t unused)
     int count = 0;  //TODO :2 強引な区間設定によって作られた変数です
     int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
     int tail_i = 0; //TODO :4 おまけ コマンドでの終了する際のタイマー用変数
+    int8_t forward_course = 50; //TODO :2 強引な区間設定によって作られた変数
 
     /* 各オブジェクトを生成・初期化する */
     touchSensor = new TouchSensor(PORT_1);
@@ -191,7 +192,7 @@ void main_task(intptr_t unused)
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
-        int32_t gyro, volt,
+        int32_t gyro, volt;
         int32_t distance_now; /*現在の走行距離を格納する変数 */
 
         /* バックボタンによる停止処理です */
@@ -229,7 +230,7 @@ void main_task(intptr_t unused)
         /* 区間変更を監視、行うプログラム */
         if (distance_now >= gCourse[count].getDis()) {      //TODO :2 もっといい書き方があると思います。
             course_number = gCourse[count].getCourse_num();      //TODO :2 もっといい書き方があると思います。
-            forward = gCourse[count].getForward();      //TODO :2 もっといい書き方があると思います。
+            forward_course = gCourse[count].getForward();      //TODO :2 もっといい書き方があると思います。
             pid_walk.setPID(gCourse[count].getP(), gCourse[count].getI(), gCourse[count].getD());      //TODO :2 もっといい書き方があると思います。
             count++;      //TODO :2 もっといい書き方があると思います。
         }      //TODO :2 もっといい書き方があると思います。
@@ -244,7 +245,7 @@ void main_task(intptr_t unused)
                 forward = -20; //TODO 4: おまけコマンド停止処理用
             }
             else {
-                forward = gCourse[count].getForward(); /* 前進命令 */
+                forward = forward_course; /* 前進命令 */
             }
             /* PID制御 */
             // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
