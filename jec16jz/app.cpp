@@ -42,7 +42,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           500  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            20  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          260  /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          240  /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              5  /* 何もないときのセンサの合計 */
 #define KP_WALK         0.1200F  /* 走行用定数P TODO :1 この値は走行時には使われていない*/
 #define KI_WALK         0.0000F  /* 走行用定数I TODO :1 この値は走行時には使われていない*/
@@ -91,7 +91,7 @@ Distance distance_way;
 static Course gCourse[]  {   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     /* Lコース用配列 */
     { 0,     0,100, 0.0600F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 1,  2205, 85, 0.1000F, 0.0000F, 0.0100F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 1,  2205, 85, 0.1000F, 0.0000F, 0.0100F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要 2205
     { 2,  3916, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     { 3,  4784,100, 0.0700F, 0.0000F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     { 4,  5238, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
@@ -271,12 +271,12 @@ void main_task(intptr_t unused)
 
         /* ログを送信する処理　*/
         // syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, (rgb_level.r + rgb_level.g + rgb_level.b));
-        // syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
-        if (bt_cmd == 1)
-        {
-            syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
-            bt_cmd = 0;
-        }
+        syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
+        // if (bt_cmd == 1)
+        // {
+        //     syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
+        //     bt_cmd = 0;
+        // }
 
         // TODO :4 おまけ
         if (bt_cmd == 6)
@@ -375,7 +375,13 @@ void bt_task(intptr_t unused)
         case '1':
             bt_cmd = 1;
             break;
+        case 'l':
+            bt_cmd = 1;
+            break;
         case '2':
+            bt_cmd = 2;
+            break;
+        case 'r':
             bt_cmd = 2;
             break;
         case '6':
