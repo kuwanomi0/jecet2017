@@ -42,7 +42,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           500  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            20  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          260  /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          240  /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              5  /* 何もないときのセンサの合計 */
 #define KP_WALK         0.1200F  /* 走行用定数P TODO :1 この値は走行時には使われていない*/
 #define KI_WALK         0.0000F  /* 走行用定数I TODO :1 この値は走行時には使われていない*/
@@ -280,7 +280,7 @@ void main_task(intptr_t unused)
         rightMotor->setPWM(pwm_R);
 
         /* ログを送信する処理　*/
-        syslog(LOG_NOTICE, "DEBUG, C:%2d, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", course_number, distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, rgb_total);
+        // syslog(LOG_NOTICE, "DEBUG, C:%2d, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", course_number, distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, rgb_total);
         // syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
         if (bt_cmd == 1)
         {
@@ -383,9 +383,11 @@ void bt_task(intptr_t unused)
         switch(c)
         {
         case '1':
+        case 'l':
             bt_cmd = 1;
             break;
         case '2':
+        case 'r':
             bt_cmd = 2;
             break;
         case '6':
