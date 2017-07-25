@@ -118,7 +118,7 @@ static Course gCourse[]  {   //TODO :2 非常にひどい書き方だと思い�
 #define NOTE_C4 (261.63)
 #define NOTE_B6 (1975.53)
 #define SOUND_MANUAL_STOP (100)
-#define VOLUME 100
+#define VOLUME 1
 #define TONE NOTE_C4
 // ファンファーレ
 // memfile_t memfile;
@@ -166,6 +166,8 @@ void main_task(intptr_t unused)
     /* スタート待機 */
     double angle = (double)TAIL_ANGLE_STAND_UP;
     int rotation_flag = 0;
+    int run_flag = 0;
+    int ctlspeed;
     while(1)
     {
         tail_control(angle); /* 完全停止用角度に制御、調整も可 */
@@ -214,27 +216,49 @@ void main_task(intptr_t unused)
             rotation_flag = 0;
         }
         // ラジコン操作
-        if (bt_cmd == 'w') {
+        if (bt_cmd == 't' && run_flag == 0) {
             syslog(LOG_NOTICE, "DEBUG, 前進\r");
             leftMotor->setPWM(10);
             rightMotor->setPWM(10);
-            clock->reset();
-            while (clock->now() < 500) {
-                // 何もしない
+            bt_cmd = 0;
+            run_flag = 1;
+        }
+        if (bt_cmd == 't' && run_flag == 1) {
+            syslog(LOG_NOTICE, "DEBUG, 前進停止\r");
+            for (int i = 50; i >= 0; i--) {
+                leftMotor->setPWM(i);
+                rightMotor->setPWM(i);
             }
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
+            bt_cmd = 0;
+            run_flag = 0;
+        }
+        // ラジコン操作2
+        if (bt_cmd == 'w') {    // 前進
+            ctlspeed = 10;  // ラジコンのスピード
+            while (ctlspeed >= 0) {
+                leftMotor->setPWM(ctlspeed);
+                rightMotor->setPWM(ctlspeed);
+                ctlspeed--;
+                // 以下遅延処理
+                clock->reset();
+                while (clock->now() < 500) {
+                    // 遅延
+                }
+            }
             bt_cmd = 0;
         }
-        if (bt_cmd == 's') {
-            leftMotor->setPWM(-10);
-            rightMotor->setPWM(-10);
-            clock->reset();
-            while (clock->now() < 500) {
-                // 何もしない
+        if (bt_cmd == 's') {    // 後進
+            ctlspeed = -10;  // ラジコンのスピード
+            while (ctlspeed <= 0) {
+                leftMotor->setPWM(ctlspeed);
+                rightMotor->setPWM(ctlspeed);
+                ctlspeed++;
+                // 以下遅延処理
+                clock->reset();
+                while (clock->now() < 500) {
+                    // 遅延
+                }
             }
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
             bt_cmd = 0;
         }
         if (bt_cmd == 'd') {
@@ -493,6 +517,9 @@ void bt_task(intptr_t unused)
             break;
         case ']':   // 下
             bt_cmd = ']';
+            break;
+        case 't':
+            bt_cmd = 't';
             break;
         case 'w':
             bt_cmd = 'w';
