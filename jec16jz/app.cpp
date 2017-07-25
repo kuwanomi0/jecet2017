@@ -40,20 +40,21 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define RGB_WHITE           500  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            20  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          240  /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
+#define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
+#define RGB_TARGET           85  /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              5  /* 何もないときのセンサの合計 */
 #define KP_WALK         0.1200F  /* 走行用定数P TODO :1 この値は走行時には使われていない*/
 #define KI_WALK         0.0000F  /* 走行用定数I TODO :1 この値は走行時には使われていない*/
 #define KD_WALK         0.1000F  /* 走行用定数D TODO :1 この値は走行時には使われていない*/
 #define FORWARD_K            75  /* ロボットの前進速度 TODO :1 この値は走行時には使われていない*/
+#define PIDX                  1  /* PID倍率 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
 
 /* 尻尾に関するマクロ */
-#define TAIL_ANGLE_STAND_UP   91 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_STAND_UP   92 /* 完全停止時の角度[度] */
 #define TAIL_ANGLE_ROKET     100 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       75 /* 停止処理時の角度[度] */
@@ -87,38 +88,30 @@ PID pid_walk(KP_WALK, KI_WALK, KD_WALK); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 Distance distance_way;
 
-#define R_COURSE   15   /* Rコースの一番最初の値が格納されている番号、Lコースの配列の追加削除をした際にはRコースの先頭配列の番号を変える必要があります */  //TODO :2 非常にひどい書き方だと思います。見直しが必要
+#define R_COURSE   11   /* Rコースの一番最初の値が格納されている番号、Lコースの配列の追加削除をした際にはRコースの先頭配列の番号を変える必要があります */  //TODO :2 非常にひどい書き方だと思います。見直しが必要
 static Course gCourse[]  {   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     /* Lコース用配列 */
-    { 0,     0,125, 0.0600F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 1,  2205, 85, 0.1000F, 0.0000F, 0.0100F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 2,  3927, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 3,  4754,100, 0.0700F, 0.0000F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 4,  5209, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 5,  6134,100, 0.0800F, 0.0000F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 6,  6674, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 7,  7562, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 8,  8612,100, 0.0600F, 0.0000F, 0.0300F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 9,  9900, 30, 0.0900F, 0.0000F, 0.0300F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {10, 10030, 30, 0.0000F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {11, 10351, 20, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {12, 11576, 30, 0.0000F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {13, 11766, 50, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {14, 99999,  1, 0.0000F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 0,     0,100, 0.0500F, 0.0100F, 0.0100F },   //TODO :2 順序番号、距離、フォワード、P、I、D
+    { 1,  2205, 85, 0.0620F, 0.1000F, 4.0100F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 2,  3916, 85, 0.0450F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 3,  4784,100, 0.0500F, 0.0000F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 4,  5238, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 5,  6158,100, 0.0800F, 0.0000F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 6,  6772, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 7,  7652, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 8,  8780,125, 0.0600F, 0.0000F, 0.0300F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 9, 10031,  1, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    {10, 99999,  1, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
 
     /* Rコース用配列 */
-    { 0,     0,125, 0.0600F, 0.0000F, 0.0100F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 1,  2225, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 2,  5400, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 3,  6350, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 4,  7250, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 5,  8900,100, 0.0600F, 0.0000F, 0.0300F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 6, 10198, 30, 0.0900F, 0.0000F, 0.0300F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 7, 10298, 30, 0.0000F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 8, 10570, 20, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    { 9, 11950, 50, 0.0000F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {10, 12167, 30, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
-    {11, 99999,  1, 0.0000F, 0.0000F, 0.0000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 0,     0,100, 0.0600F, 0.0000F, 0.0100F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 1,  2251, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 2,  5383, 85, 0.1000F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 3,  6298, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 4,  7348, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 5,  8900,125, 0.0600F, 0.0000F, 0.0300F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 6, 10298,  1, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 7, 99999,  1, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
 };   //TODO :2 非常にひどい書き方だと思います。見直しが必要
 
 /* メインタスク */
@@ -133,7 +126,6 @@ void main_task(intptr_t unused)
     int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
     int tail_i = 0; //TODO :4 おまけ コマンドでの終了する際のタイマー用変数
     int8_t forward_course = 50; //TODO :2 強引な区間設定によって作られた変数
-    uint16_t rgb_total;
 
     /* 各オブジェクトを生成・初期化する */
     touchSensor = new TouchSensor(PORT_1);
@@ -162,9 +154,10 @@ void main_task(intptr_t unused)
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
     /* スタート待機 */
+    double angle = (double)TAIL_ANGLE_STAND_UP;
     while(1)
     {
-        tail_control(TAIL_ANGLE_STAND_UP); /* 完全停止用角度に制御 */
+        tail_control(angle); /* 完全停止用角度に制御、調整も可 */
 
         /* Lコース */  //TODO :2 非常にひどい書き方だと思います。見直しが必要
         if (bt_cmd == 1)
@@ -182,6 +175,17 @@ void main_task(intptr_t unused)
         {
             break; /* タッチセンサが押された */
         }
+
+        // スタート前の尻尾調整
+        if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == 'd') {
+            angle -= 0.1;
+            bt_cmd = 0; // コマンドリセット
+        }
+        if (ev3_button_is_pressed(UP_BUTTON) || bt_cmd == 'u') {
+            angle += 0.1;
+            bt_cmd = 0; // コマンドリセット
+        }
+        syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d\r", (int)angle);
 
         clock->sleep(10); /* 10msecウェイト */
     }
@@ -228,10 +232,9 @@ void main_task(intptr_t unused)
         }
 
         colorSensor->getRawColor(rgb_level); /* RGB取得 */
-        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b);
 
         /* 転倒時の停止処理 */
-        if(rgb_total <= RGB_NULL) {
+        if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_NULL) {
             break;
         }
 
@@ -242,7 +245,7 @@ void main_task(intptr_t unused)
         if (distance_now >= gCourse[count].getDis()) {      //TODO :2 もっといい書き方があると思います。
             course_number = gCourse[count].getCourse_num();      //TODO :2 もっといい書き方があると思います。
             forward_course = gCourse[count].getForward();      //TODO :2 もっといい書き方があると思います。
-            pid_walk.setPID(gCourse[count].getP(), gCourse[count].getI(), gCourse[count].getD());      //TODO :2 もっといい書き方があると思います。
+            pid_walk.setPID(gCourse[count].getP() * PIDX, gCourse[count].getI() * PIDX, gCourse[count].getD() * PIDX);      //TODO :2 もっといい書き方があると思います。
             count++;      //TODO :2 もっといい書き方があると思います。
         }      //TODO :2 もっといい書き方があると思います。
 
@@ -251,7 +254,7 @@ void main_task(intptr_t unused)
             ev3_led_set_color(LED_RED);
         }
         else {
-            if (bt_cmd == 7 || bt_cmd ==6) //TODO 4: おまけコマンド停止処理用
+            if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
                 forward = -20; //TODO 4: おまけコマンド停止処理用
             }
@@ -259,8 +262,8 @@ void main_task(intptr_t unused)
                 forward = forward_course; /* 前進命令 */
             }
             /* PID制御 */
-            // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - rgb_total);
-            turn =  pid_walk.calcControl(RGB_TARGET - rgb_total);
+            // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
+            turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.b));
         }
 
         /* 倒立振子制御API に渡すパラメータを取得する */
@@ -280,23 +283,23 @@ void main_task(intptr_t unused)
         rightMotor->setPWM(pwm_R);
 
         /* ログを送信する処理　*/
-        // syslog(LOG_NOTICE, "DEBUG, C:%2d, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", course_number, distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, rgb_total);
-        // syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
-        if (bt_cmd == 1)
+        // syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, (rgb_level.r + rgb_level.g + rgb_level.b));
+        syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
+        /* if (bt_cmd == 1 || bt_cmd == '\n')
         {
             syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
             bt_cmd = 0;
-        }
+        } */
 
         // TODO :4 おまけ
         if (bt_cmd == 6)
         {
-            // if (tail_i++ < 400) {
-            //     tail_control(TAIL_ANGLE_STOP);
-            // }
-            // else {
+            if (tail_i++ < 400) {
+                tail_control(TAIL_ANGLE_STOP);
+            }
+            else {
                 break;
-            // }
+            }
         }
 
 
@@ -304,6 +307,7 @@ void main_task(intptr_t unused)
     }
     leftMotor->reset();
     rightMotor->reset();
+    tailMotor->reset();
 
     ter_tsk(BT_TASK);
     fclose(bt);
@@ -396,9 +400,19 @@ void bt_task(intptr_t unused)
         case '7':
             bt_cmd = 7;
             break;
+        case 'u':   // 上
+        case '[':
+            bt_cmd = 'u';
+            break;
+        case 'd':   // 下
+        case ']':
+            bt_cmd = 'd';
+            break;
         default:
             break;
         }
-        fputc(c, bt); /* エコーバック */
+        if (!(bt_cmd == 'u' || bt_cmd == 'd')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
+            fputc(c, bt); /* エコーバック */
+        }
     }
 }
