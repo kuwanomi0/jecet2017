@@ -282,8 +282,7 @@ void main_task(intptr_t unused)
 
         // クラクション
         if (bt_cmd == ' ') {
-            ev3_speaker_set_volume(VOLUME);
-            ev3_speaker_play_tone(TONE, SOUND_MANUAL_STOP);
+            carHorn();
             bt_cmd = 0;
         }
 
@@ -352,6 +351,11 @@ void main_task(intptr_t unused)
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_led_set_color(LED_RED);
+            clock->sleep(5000);
+            tail_control(TAIL_ANGLE_STOP);
+            forward = -30;
+
+
         }
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
@@ -403,9 +407,7 @@ void main_task(intptr_t unused)
         }
 
         if (bt_cmd == ' ') {
-            ev3_speaker_set_volume(VOLUME);
-            //ev3_speaker_play_file(&memfile, SOUND_MANUAL_STOP);
-            ev3_speaker_play_tone(TONE, SOUND_MANUAL_STOP);
+            carHorn();
             bt_cmd = 0;
         }
 
@@ -540,4 +542,16 @@ void bt_task(intptr_t unused)
             fputc(c, bt); /* エコーバック */
         }
     }
+}
+
+//*****************************************************************************
+// 関数名 : carHorn
+// 引数 : unused
+// 返り値 : なし
+// 概要 : クラクションを鳴らす
+//*****************************************************************************
+void carHorn() {
+    ev3_speaker_set_volume(VOLUME);
+    //ev3_speaker_play_file(&memfile, SOUND_MANUAL_STOP);
+    ev3_speaker_play_tone(TONE, SOUND_MANUAL_STOP);
 }
