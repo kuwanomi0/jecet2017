@@ -40,9 +40,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET           85  /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_WHITE           /*350*/ 160 /* 白色のRGBセンサの合計 */
+#define RGB_BLACK          /*20 */ 10  /* 黒色のRGBセンサの合計 */
+#define RGB_TARGET          /*185*/ 85 /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              5  /* 何もないときのセンサの合計 */
 #define KP_WALK         0.1200F  /* 走行用定数P TODO :1 この値は走行時には使われていない*/
 #define KI_WALK         0.0000F  /* 走行用定数I TODO :1 この値は走行時には使われていない*/
@@ -92,8 +92,8 @@ Distance distance_way;
 static Course gCourse[]  {   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     /* Lコース用配列  コマンド1 */
     /*区間、距離、フォワード、PID*/
-    { 0,     0, 80, 0.0550F, 0.0100F, 0.0100F },   //TODO :2 順序番号、距離、フォワード、P、I、D
-    { 1,  2205, 70, 0.0620F, 0.0100F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
+    { 0,     0, 20, 0.0700F, 0.0000F, 0.0000F },   //TODO :2 順序番号、距離、フォワード、P、I、D
+    { 1,  1000000/*2205*/, 70, 0.0620F, 0.0100F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     { 2,  3916, 85, 0.0450F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     { 3,  4784, 80, 0.0500F, 0.0000F, 0.0500F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
     { 4,  5238, 85, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
@@ -115,6 +115,11 @@ static Course gCourse[]  {   //TODO :2 非常にひどい書き方だと思い�
     { 7, 99999,  1, 0.1200F, 0.0000F, 0.1000F },   //TODO :2 非常にひどい書き方だと思います。見直しが必要
 };   //TODO :2 非常にひどい書き方だと思います。見直しが必要
 
+// サウンド
+#define NOTE_C4 (261.63)
+#define MY_SOUND_MANUAL_STOP (100)
+#define VOLUME 100
+#define TONE NOTE_C4
 /* メインタスク */
 void main_task(intptr_t unused)
 {
@@ -226,7 +231,7 @@ void main_task(intptr_t unused)
             angle += 0.1;
             bt_cmd = 0; // コマンドリセット
         }
-        syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d\r", (int)angle);
+        syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
 
         clock->sleep(10); /* 10msecウェイト */
     }
@@ -244,6 +249,7 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
+    int glay = 0;
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
@@ -256,14 +262,9 @@ void main_task(intptr_t unused)
         }
 
         if (bt_cmd == 9) {
-            while (1) {
-                tail_control(TAIL_ANGLE_STOP);
-                forward = -30;
-                forward = turn = 0;
+            //    tail_control(TAIL_ANGLE_STOP);
+                forward = 1;
                 ev3_led_set_color(LED_ORANGE);
-                leftMotor->setPWM(18);
-                rightMotor->setPWM(-17);
-            }
         }
 
         /* 参照しているコース配列が切り替わったことをLEDで知らせます */
@@ -293,17 +294,78 @@ void main_task(intptr_t unused)
         /* 現在の走行距離を取得 */
         distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
 
+        if ( 100 >= rgb_level.r &&                             /* TODO 01: glay検出用*/
+            rgb_level.g <= 100 &&                             /* TODO 01: glay検出用*/
+            300 < (rgb_level.r + rgb_level.g + rgb_level.b)) {  /* TODO 01: glay検出用*/
+
+            glay++;                                           /* TODO 01: glay検出用*/
+
+        //    ev3_speaker_set_volume(VOLUME);
+        //    ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
+         }                                                     /* TODO 01: glay検出用*/
+         else {                                                /* TODO 01: glay検出用*/
+             glay = 0;                                         /* TODO 01: glay検出用*/
+         }                                                     /* TODO 01: glay検出用*/
+         if (glay == 1) {
+                 turn = 0;
+                 ev3_led_set_color(LED_RED);
+         }
+
+
+
         /* 区間変更を監視、行うプログラム */
         if (distance_now >= gCourse[count].getDis()) {      //TODO :2 もっといい書き方があると思います。
+
             course_number = gCourse[count].getCourse_num();      //TODO :2 もっといい書き方があると思います。
             forward_course = gCourse[count].getForward();      //TODO :2 もっといい書き方があると思います。
             pid_walk.setPID(gCourse[count].getP() * PIDX, gCourse[count].getI() * PIDX, gCourse[count].getD() * PIDX);      //TODO :2 もっといい書き方があると思います。
             count++;      //TODO :2 もっといい書き方があると思います。
         }      //TODO :2 もっといい書き方があると思います。
+
+
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
-            ev3_led_set_color(LED_RED);
+
+            for(int angle = 80; angle >= 64; angle--)
+        	{
+                if (ev3_button_is_pressed(BACK_BUTTON)) break;
+        		if(angle >= 78){
+        			leftMotor->setPWM(20);
+        			rightMotor->setPWM(19);
+        		}else{
+        			leftMotor->setPWM(0);
+        			rightMotor->setPWM(0);
+        		}
+        		clock->reset();
+        		clock->sleep(1);
+        		while(clock->now() <= 400){
+        			tail_control(angle);
+        			clock->sleep(4);
+        		}
+        	}
+            while(1){
+        		if (ev3_button_is_pressed(BACK_BUTTON)) break;
+                colorSensor->getRawColor(rgb_level);
+                /*if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_TARGET ) {
+                    break;
+                }*/
+        		leftMotor->setPWM(18);
+        		rightMotor->setPWM(-17);
+        		tail_control(64);
+        		clock->sleep(4);
+        	}
+
+            /*ev3_led_set_color(LED_RED);
+            tail_control(angle);
+
+            clock->wait(10000);
+
+
+            break;*/
+
         }
+
+
 
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
@@ -336,7 +398,8 @@ void main_task(intptr_t unused)
 
         /* ログを送信する処理　*/
         // syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, (rgb_level.r + rgb_level.g + rgb_level.b));
-        syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
+        //さっきのsyslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
+        syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
         /* if (bt_cmd == 1 || bt_cmd == '\n')
         {
             syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
@@ -357,9 +420,11 @@ void main_task(intptr_t unused)
 
         clock->sleep(4); /* 4msec周期起動 */
     }
+    tail_control(80);
     leftMotor->reset();
     rightMotor->reset();
     tailMotor->reset();
+
 
     ter_tsk(BT_TASK);
     fclose(bt);
