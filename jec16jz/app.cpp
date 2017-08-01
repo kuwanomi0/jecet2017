@@ -147,7 +147,7 @@ static Course gCourseR[]  {
 // サウンド
 #define NOTE_C4 (261.63)
 #define NOTE_B6 (1975.53)
-#define SOUND_MANUAL_STOP (100)
+#define MYSOUND_MANUAL_STOP (100)
 #define VOLUME 1
 #define TONE NOTE_C4
 // ファンファーレ
@@ -719,6 +719,6 @@ void bt_task(intptr_t unused)
 //*****************************************************************************
 static void carHorn() {
     ev3_speaker_set_volume(VOLUME);
-    //ev3_speaker_play_file(&memfile, SOUND_MANUAL_STOP);
-    ev3_speaker_play_tone(TONE, SOUND_MANUAL_STOP);
+    //ev3_speaker_play_file(&memfile, MYSOUND_MANUAL_STOP);
+    ev3_speaker_play_tone(TONE, MYSOUND_MANUAL_STOP);
 }
