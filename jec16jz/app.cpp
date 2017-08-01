@@ -71,6 +71,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
+static void carHorn(void);
 
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -143,6 +144,16 @@ static Course gCourseR[]  {
     {11, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }   //TODO :2 コース関連 だいぶ改善されました
 };   //TODO :2 コース関連 だいぶ改善されました
 
+// サウンド
+#define NOTE_C4 (261.63)
+#define NOTE_B6 (1975.53)
+#define SOUND_MANUAL_STOP (100)
+#define VOLUME 1
+#define TONE NOTE_C4
+// ファンファーレ
+// memfile_t memfile;
+// ev3_memfile_load("fa01101.wav", &memfile);
+
 /* メインタスク */
 void main_task(intptr_t unused)
 {
@@ -187,6 +198,9 @@ void main_task(intptr_t unused)
 
     /* スタート待機 */
     double angle = (double)TAIL_ANGLE_STAND_UP;
+    int rotation_flag = 0;
+    int run_flag = 0;
+    int ctlspeed;
     while(1)
     {
         tail_control(angle); /* 完全停止用角度に制御、調整も可 */
@@ -220,15 +234,101 @@ void main_task(intptr_t unused)
         // }
 
         // スタート前の尻尾調整
-        if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == 'd') {
+        if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == ']') {
             angle -= 0.1;
             bt_cmd = 0; // コマンドリセット
         }
-        if (ev3_button_is_pressed(UP_BUTTON) || bt_cmd == 'u') {
+        if (ev3_button_is_pressed(UP_BUTTON) || bt_cmd == '[') {
             angle += 0.1;
             bt_cmd = 0; // コマンドリセット
         }
-        syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d\r", (int)angle);
+        syslog(LOG_NOTICE, "DEBUG, angle : %d\r", (int)angle);
+
+        // 回転
+        if (bt_cmd == 9 && rotation_flag == 0) {
+            syslog(LOG_NOTICE, "DEBUG, 回転\r");
+            leftMotor->setPWM(-18);
+            rightMotor->setPWM(17);
+            bt_cmd = 0;
+            rotation_flag = 1;
+        }
+        if (bt_cmd == 9 && rotation_flag == 1) {
+            syslog(LOG_NOTICE, "DEBUG, 回転停止\r");
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
+            bt_cmd = 0;
+            rotation_flag = 0;
+        }
+        // ラジコン操作
+        if (bt_cmd == 't' && run_flag == 0) {
+            syslog(LOG_NOTICE, "DEBUG, 前進\r");
+            leftMotor->setPWM(10);
+            rightMotor->setPWM(10);
+            bt_cmd = 0;
+            run_flag = 1;
+        }
+        if (bt_cmd == 't' && run_flag == 1) {
+            syslog(LOG_NOTICE, "DEBUG, 前進停止\r");
+            for (int i = 50; i >= 0; i--) {
+                leftMotor->setPWM(i);
+                rightMotor->setPWM(i);
+            }
+            bt_cmd = 0;
+            run_flag = 0;
+        }
+        // ラジコン操作2
+        if (bt_cmd == 'w') {    // 前進
+            ctlspeed = 10;  // ラジコンのスピード
+            while (ctlspeed >= 0) {
+                leftMotor->setPWM(ctlspeed);
+                rightMotor->setPWM(ctlspeed);
+                ctlspeed--;
+                // 以下遅延処理
+                clock->reset();
+                while (clock->now() < 500) {
+                    // 遅延
+                }
+            }
+            bt_cmd = 0;
+        }
+        if (bt_cmd == 's') {    // 後進
+            ctlspeed = -10;  // ラジコンのスピード
+            while (ctlspeed <= 0) {
+                leftMotor->setPWM(ctlspeed);
+                rightMotor->setPWM(ctlspeed);
+                ctlspeed++;
+                // 以下遅延処理
+                clock->reset();
+                while (clock->now() < 500) {
+                    // 遅延
+                }
+            }
+            bt_cmd = 0;
+        }
+        if (bt_cmd == 'd') {
+            turn = 10;
+            clock->reset();
+            while (clock->now() < 500) {
+                // 何もしない
+            }
+            turn = 0;
+            bt_cmd = 0;
+        }
+        if (bt_cmd == 'a') {
+            turn = -10;
+            clock->reset();
+            while (clock->now() < 500) {
+                // 何もしない
+            }
+            turn = 0;
+            bt_cmd = 0;
+        }
+
+        // クラクション
+        if (bt_cmd == ' ') {
+            carHorn();
+            bt_cmd = 0;
+        }
 
         clock->sleep(10); /* 10msecウェイト */
     }
@@ -298,11 +398,16 @@ void main_task(intptr_t unused)
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_led_set_color(LED_RED);
+            clock->sleep(5000);
+            tail_control(TAIL_ANGLE_STOP);
+            forward = -30;
+
+
         }
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
-                forward = -40; //TODO 4: おまけコマンド停止処理用
+                forward = -30; //TODO 4: おまけコマンド停止処理用
             }
             else {
                 forward = forward_course; /* 前進命令 */
@@ -348,6 +453,10 @@ void main_task(intptr_t unused)
             // }
         }
 
+        if (bt_cmd == ' ') {
+            carHorn();
+            bt_cmd = 0;
+        }
 
         clock->sleep(4); /* 4msec周期起動 */
     }
@@ -520,15 +629,18 @@ void bt_task(intptr_t unused)
         case '7':
             bt_cmd = 7;
             break;
-        case 'u':   // 上
-        case '[':
-            bt_cmd = 'u';
+        case '9':
+            bt_cmd = 9;
             break;
-        case 'd':   // 下                            // XXX :BAKA使用時にはコメントアウト
-        case ']':
-            bt_cmd = 'd';
+        case ' ':
+            bt_cmd = ' ';
             break;
-
+        case '[':   // 上
+            bt_cmd = '[';
+            break;
+        case ']':   // 下
+            bt_cmd = ']';
+            break;
         // case '?':                                       // TODO :BAKA
             // bt_cmd = '?';                                       // TODO :BAKA
             // break;                                       // TODO :BAKA
@@ -538,14 +650,8 @@ void bt_task(intptr_t unused)
         // case 'z':                                       // TODO :BAKA
             // bt_cmd = 'z';                                       // TODO :BAKA
             // break;                                       // TODO :BAKA
-        // case 's':                                       // TODO :BAKA
-            // bt_cmd = 's';                                       // TODO :BAKA
-            // break;                                       // TODO :BAKA
         // case 'x':                                       // TODO :BAKA
             // bt_cmd = 'x';                                       // TODO :BAKA
-            // break;                                       // TODO :BAKA
-        // case 'd':                                       // TODO :BAKA
-            // bt_cmd = 'd';                                       // TODO :BAKA
             // break;                                       // TODO :BAKA
         // case 'c':                                       // TODO :BAKA
             // bt_cmd = 'c';                                       // TODO :BAKA
@@ -581,11 +687,38 @@ void bt_task(intptr_t unused)
             // bt_cmd = '.';                                       // TODO :BAKA
             // break;                                       // TODO :BAKA
 
+        case 't':
+            bt_cmd = 't';
+            break;
+        case 'w':
+            bt_cmd = 'w';
+            break;
+        case 's':
+            bt_cmd = 's';
+            break;
+        case 'd':
+            bt_cmd = 'd';
+            break;
+        case 'a':
+            bt_cmd = 'a';
+            break;
         default:
             break;
         }
-        if (!(bt_cmd == 'u' || bt_cmd == 'd')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
+        if (!(bt_cmd == '[' || bt_cmd == ']')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
             fputc(c, bt); /* エコーバック */
         }
     }
+}
+
+//*****************************************************************************
+// 関数名 : carHorn
+// 引数 : unused
+// 返り値 : なし
+// 概要 : クラクションを鳴らす
+//*****************************************************************************
+static void carHorn() {
+    ev3_speaker_set_volume(VOLUME);
+    //ev3_speaker_play_file(&memfile, SOUND_MANUAL_STOP);
+    ev3_speaker_play_tone(TONE, SOUND_MANUAL_STOP);
 }
