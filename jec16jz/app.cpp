@@ -20,7 +20,6 @@
 #include "Clock.h"
 #include "PID.h"
 #include "Distance.h"
-
 #include "Course.h"
 
 using namespace ev3api;
@@ -44,9 +43,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_BLACK            20  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          240  /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
-#define KP_WALK         0.1200F  /* コースを利用しない際の初期の係数P */
-#define KI_WALK         0.0001F  /* コースを利用しない際の初期の係数I */
-#define KD_WALK         1.0000F  /* コースを利用しない際の初期の係数D */
 #define PIDX                  1  /* PID倍率 */
 #define KLP                 0.8  /* LPF用係数*/
 
@@ -60,7 +56,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define TAIL_ANGLE_STOP       75 /* 停止処理時の角度[度] */
 #define KP_TAIL            1.00F /* 尻尾用定数P */
 #define KI_TAIL            0.01F /* 尻尾用定数I */
-#define KD_TAIL            1.0F /* 尻尾用定数D */
+#define KD_TAIL             1.0F /* 尻尾用定数D */
 #define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
 
 /* LCDフォントサイズ */
@@ -85,10 +81,11 @@ Clock*          clock;
 
 /* インスタンスの生成 */
 Balancer balancer;              // <1>
-PID pid_walk(KP_WALK, KI_WALK, KD_WALK); /* 走行用のPIDインスタンス */
+PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 Distance distance_way;
 
+/* Lコース */
 static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されました これで30.36secでた。
     { 0,     0,122,  0, 0.0500F, 0.0000F, 1.0000F }, //スタート
     { 1,  2000,106,  0, 0.1200F, 0.0002F, 0.7000F }, //大きく右
@@ -106,7 +103,8 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
     {14, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
-static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました　31.25secでた
+/* Rコース */
+static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
     { 0,     0,122,  0, 0.0500F, 0.0000F, 1.0000F }, //スタート
     { 1,  2200,106,  0, 0.1200F, 0.0002F, 0.4900F }, //大きく右
     { 1,  3700,106,  0, 0.1000F, 0.0001F, 0.5100F }, //大きく右
@@ -119,6 +117,12 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
     { 8, 11750,106,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     { 9, 12167,106,  0, 0.1200F, 0.0002F, 0.6000F }, //直?
     {10, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+};
+
+/* デフォルト */
+static Course gCourse[] {
+    { 0,     0, 50,  0, 0.1000F, 0.0001F, 1.0000F }, //スタート
+    { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
 };
 
 // サウンド
@@ -134,8 +138,8 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    int8_t    forward = 50;      /* 前後進命令 */
-    int8_t    turn = 0;         /* 旋回命令 */
+    int8_t    forward;      /* 前後進命令 */
+    int8_t    turn;         /* 旋回命令 */
     int8_t    pwm_L, pwm_R; /* 左右モータPWM出力 */
     rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
     int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
@@ -183,23 +187,24 @@ void main_task(intptr_t unused)
     {
         tail_control(angle); /* 完全停止用角度に制御、調整も可 */
 
-        /* Lコース */  //TODO :2 コース関連 だいぶ改善されました
-        if (bt_cmd == 1 || touchSensor->isPressed()) //TODO :5 現在タッチセンサーでのスタートはLコースを走るメソッドを選びます
+        /* Lコース */
+        if (bt_cmd == 1)
         {
             mCourse = gCourseL;
             break; /* リモートスタート */
         }
-        /* Rコース */  //TODO :2 コース関連 だいぶ改善されました
+        /* Rコース */
         if (bt_cmd == 2)
         {
-            mCourse = gCourseR;//TODO :2 コース関連 だいぶ改善されました
+            mCourse = gCourseR;
             break; /* リモートスタート */
         }
 
-        // if (touchSensor->isPressed())
-        // {
-        //     break; /* タッチセンサが押された */
-        // }
+        if (touchSensor->isPressed())
+        {
+            mCourse = gCourse;
+            break; /* タッチセンサが押された */
+        }
 
         // スタート前の尻尾調整
         if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == ']') {
@@ -337,14 +342,15 @@ void main_task(intptr_t unused)
         if (bt_cmd == 6) {  // TODO :4 おまけ コマンド終了停止用の角度変更を回避するための分岐
         }
         else if(roket++ < 50)                                              //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
-            tail_control(TAIL_ANGLE_ROKET); /* ロ8ット走行用角度に制御 */  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
+            tail_control(TAIL_ANGLE_ROKET); /* ロケット走行用角度に制御 */  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
         else {
             tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
         }
 
-        rgb_before = rgb_total;
+        rgb_before = rgb_total; //LPF用前処理
         colorSensor->getRawColor(rgb_level); /* RGB取得 */
-        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //ローパスフィルター
+        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+
         /* 転倒時の停止処理 */
         if(rgb_total <= RGB_NULL) {
             break;
@@ -401,9 +407,8 @@ void main_task(intptr_t unused)
         rightMotor->setPWM(pwm_R);
 
         /* ログを送信する処理　*/
-        // syslog(LOG_NOTICE, "DEBUG, C:%2d, DIS:%5d, GYRO:%3d, R:%3d, G:%3d, B:%3d, T:%4d\r", course_number, distance_now, gyro, rgb_level.r, rgb_level.g, rgb_level.b, rgb_total);
         // syslog(LOG_NOTICE, "D:%5d, G:%3d, T:%3d, L:%3d, R:%3d\r", distance_now, gyro, turn, pwm_L, pwm_R);
-        syslog(LOG_NOTICE, "D:%5d, G:%3d, T:%3d, RGB%3d\r", distance_now, gyro, turn, rgb_total);
+        syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d\r", distance_now, gyro, volt, rgb_total);
         // if (bt_cmd == 1)
         // {
         //     syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
