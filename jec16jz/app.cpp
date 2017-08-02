@@ -72,6 +72,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
 static void carHorn(void);
+static void run_result(void);
 
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -125,11 +126,15 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
 #define NOTE_C4 (261.63)
 #define NOTE_B6 (1975.53)
 #define MYSOUND_MANUAL_STOP (100)
-#define VOLUME 1
+#define VOLUME 50
 #define TONE NOTE_C4
 // ファンファーレ
 // memfile_t memfile;
 // ev3_memfile_load("fa01101.wav", &memfile);
+
+//　タイム格納用
+static int time[100];
+static int lapTime_count = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -322,6 +327,7 @@ void main_task(intptr_t unused)
 
         /* バックボタンによる停止処理です */
         if (ev3_button_is_pressed(BACK_BUTTON)) {
+            run_result();
             break;
         }
 
@@ -347,6 +353,7 @@ void main_task(intptr_t unused)
         rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //ローパスフィルター
         /* 転倒時の停止処理 */
         if(rgb_total <= RGB_NULL) {
+            run_result();
             break;
         }
 
@@ -365,11 +372,28 @@ void main_task(intptr_t unused)
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_led_set_color(LED_RED);
-            clock->sleep(5000);
-            tail_control(TAIL_ANGLE_STOP);
-            forward = -30;
+            syslog(LOG_NOTICE, "障害物検知\r");
+            carHorn();
+            for (int i = 0; i < TAIL_ANGLE_STOP; i++) {
+                tail_control(i);
+                clock->sleep(4);
+            }
 
-
+            // balancer.setCommand(forward, turn);   // <1>
+            // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+            // pwm_L = balancer.getPwmRight();       // <3>
+            // pwm_R = balancer.getPwmLeft();        // <3>
+            //
+            // leftMotor->setPWM(pwm_L);
+            // rightMotor->setPWM(pwm_R);
+            leftMotor->setPWM(-10);
+            rightMotor->setPWM(-10);
+            clock->sleep(1000);
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
+            while (1) {
+                syslog(LOG_NOTICE, "停止中？\r");
+            }
         }
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
@@ -439,6 +463,80 @@ void main_task(intptr_t unused)
     rightMotor->reset();
     tailMotor->reset();
 
+<<<<<<< HEAD
+    /* ここからBAKAプログラム *
+    if (bt_cmd == '?') {
+        syslog(LOG_NOTICE, "music mode\r\r");
+        ev3_speaker_set_volume (1);
+        while (bt_cmd != '-') {
+            syslog(LOG_NOTICE, "play music!!\r");
+            if (bt_cmd == 'z') {
+                ev3_speaker_play_tone (NOTE_C5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 's') {
+                ev3_speaker_play_tone (NOTE_CS5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'x') {
+                ev3_speaker_play_tone (NOTE_D5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'd') {
+                ev3_speaker_play_tone (NOTE_DS5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'c') {
+                ev3_speaker_play_tone (NOTE_E5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'v') {
+                ev3_speaker_play_tone (NOTE_F5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'g') {
+                ev3_speaker_play_tone (NOTE_FS5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'b') {
+                ev3_speaker_play_tone (NOTE_G5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'h') {
+                ev3_speaker_play_tone (NOTE_GS5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'n') {
+                ev3_speaker_play_tone (NOTE_A5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'j') {
+                ev3_speaker_play_tone (NOTE_AS5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'm') {
+                ev3_speaker_play_tone (NOTE_B5, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == ',') {
+                ev3_speaker_play_tone (NOTE_C6, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == 'l') {
+                ev3_speaker_play_tone (NOTE_CS6, 1000);
+                bt_cmd = 0;
+            }
+            if (bt_cmd == '.') {
+                ev3_speaker_play_tone (NOTE_D6, 1000);
+                bt_cmd = 0;
+            }
+            clock->sleep(50);
+        }
+    }
+    /* ここまでBAKAプログラム */
+
+=======
+>>>>>>> 67b4439330d98ba1c362afc61bf4d710175f08f6
     ter_tsk(BT_TASK);
     fclose(bt);
 
@@ -560,11 +658,23 @@ void bt_task(intptr_t unused)
         case 'a':
             bt_cmd = 'a';
             break;
+        case '\r':
+            bt_cmd = '\r';
+            break;
         default:
             break;
         }
-        if (!(bt_cmd == '[' || bt_cmd == ']')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
+        if (!(bt_cmd == '[' || bt_cmd == ']' || bt_cmd == ' ')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
             fputc(c, bt); /* エコーバック */
+        }
+        if (bt_cmd == 1 || bt_cmd == 2) {
+            clock->reset();
+        }
+        else if (bt_cmd == '\r') {
+            syslog(LOG_NOTICE, "DEBUG, TIME : //////////////////////////////\r");
+            syslog(LOG_NOTICE, "DEBUG, TIME : %d.%03d s\r", clock->now() / 1000, clock->now() % 1000);
+            syslog(LOG_NOTICE, "DEBUG, TIME : //////////////////////////////\r");
+            time[lapTime_count++] = clock->now();
         }
     }
 }
@@ -579,4 +689,18 @@ static void carHorn() {
     ev3_speaker_set_volume(VOLUME);
     //ev3_speaker_play_file(&memfile, MYSOUND_MANUAL_STOP);
     ev3_speaker_play_tone(TONE, MYSOUND_MANUAL_STOP);
+}
+
+//*****************************************************************************
+// 関数名 : run_result
+// 引数 : unused
+// 返り値 : なし
+// 概要 : 走行結果を表示する
+//*****************************************************************************
+static void run_result() {
+    syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
+    for (int i = 0; i < lapTime_count; i++) {
+        syslog(LOG_NOTICE, "DEBUG, TIME(%3d) : %d.%03d s\r",i + 1 , time[i] / 1000, time[i] % 1000);
+    }
+    syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
 }
