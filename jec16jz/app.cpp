@@ -39,9 +39,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define RGB_WHITE           500  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            20  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          240  /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
+#define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
+#define RGB_TARGET          240 /*115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X           0.95
@@ -68,8 +68,12 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
-static void carHorn(void);
+// static void tail_control2(int32_t angle);
+static void carHorn();
+static void carHorn(double tone);
+static void carHorn(double tone, int sound_time);
 static void run_result(void);
+static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt);
 
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -80,6 +84,7 @@ Motor*          leftMotor;
 Motor*          rightMotor;
 Motor*          tailMotor;
 Clock*          clock;
+Clock*          clock_gate;
 
 /* インスタンスの生成 */
 Balancer balancer;              // <1>
@@ -121,7 +126,7 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
     { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 9, 10550,106,  0, 0.1200F, 0.0002F, 1.5000F }, //左
     {10, 11900, 70,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {11, 12150, 50,  0, 0.1200F, 0.0002F, 0.6000F }, //直?
+    {11, 12150, 15,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 /* 階段用コースファイル */
@@ -143,7 +148,7 @@ static Course gCourse[] {
 // サウンド
 #define NOTE_C4 (261.63)
 #define NOTE_B6 (1975.53)
-#define MYSOUND_MANUAL_STOP (100)
+#define MY_SOUND_MANUAL_STOP (100)
 #define VOLUME 50
 #define TONE NOTE_C4
 // ファンファーレ
@@ -151,15 +156,19 @@ static Course gCourse[] {
 // ev3_memfile_load("fa01101.wav", &memfile);
 
 //　タイム格納用
-static int time[100];
+static int time[2][100];
 static int lapTime_count = 0;
+
+// 走行距離
+static int32_t distance_now; /*現在の走行距離を格納する変数 */
+
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
-    int8_t    pwm_L, pwm_R; /* 左右モータPWM出力 */
+    // int8_t    pwm_L, pwm_R; /* 左右モータPWM出力 */
     rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
     int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
@@ -183,10 +192,12 @@ void main_task(intptr_t unused)
     rightMotor  = new Motor(PORT_B);
     tailMotor   = new Motor(PORT_A);
     clock       = new Clock();
+    clock_gate  = new Clock();
 
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     ev3_lcd_draw_string("EV3way-ET 16JZ", 0, CALIB_FONT_HEIGHT*1);
+    ev3_lcd_draw_string("             M", 0, CALIB_FONT_HEIGHT*2);
 
     /* 尻尾モーターのリセット */
     /* 尻尾モーターのリセット */
@@ -238,6 +249,46 @@ void main_task(intptr_t unused)
             mCourse = gCourse;
             break; /* タッチセンサが押された */
         }
+        if (bt_cmd == 'd' && rotation_flag == 0) {
+            ev3_led_set_color(LED_ORANGE);
+            leftMotor->setPWM(18);
+            rightMotor->setPWM(-17);
+            bt_cmd = 0;
+            rotation_flag = 1;
+        }
+        if (bt_cmd == 'a' && rotation_flag == 0) {
+            ev3_led_set_color(LED_ORANGE);
+            leftMotor->setPWM(-18);
+            rightMotor->setPWM(17);
+            bt_cmd = 0;
+            rotation_flag = 1;
+        }
+        if (bt_cmd == 'w' && rotation_flag == 0) {
+            ev3_led_set_color(LED_ORANGE);
+            leftMotor->setPWM(18);
+            rightMotor->setPWM(18);
+            bt_cmd = 0;
+            rotation_flag = 1;
+        }
+        if (bt_cmd == 's' && rotation_flag == 0) {
+            ev3_led_set_color(LED_ORANGE);
+            leftMotor->setPWM(-18);
+            rightMotor->setPWM(-18);
+            bt_cmd = 0;
+            rotation_flag = 1;
+        }
+        if ((bt_cmd == 'd' ||
+             bt_cmd == 'a' ||
+             bt_cmd == 'w' ||
+             bt_cmd == 's') && rotation_flag == 1) {
+            ev3_led_set_color(LED_GREEN);
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
+
+            bt_cmd = 0;
+            rotation_flag = 0;
+        }
+
 
         // スタート前の尻尾調整
         if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == ']') {
@@ -248,7 +299,7 @@ void main_task(intptr_t unused)
             angle += 0.1;
             bt_cmd = 0; // コマンドリセット
         }
-        // syslog(LOG_NOTICE, "DEBUG, angle : %d\r", (int)angle);
+        syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
 
         // 回転
         if (bt_cmd == 9 && rotation_flag == 0) {
@@ -349,19 +400,28 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
+    int balancer_stop = 0;
+
     /**
     * Main loop for the self-balance control algorithm
     */
+    int glay = 0;
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
         int32_t gyro, volt;
-        int32_t distance_now; /*現在の走行距離を格納する変数 */
+        // int32_t distance_now; /*現在の走行距離を格納する変数 */　// bt_taskからも参照できるよう上に移動させました
 
         /* バックボタンによる停止処理です */
         if (ev3_button_is_pressed(BACK_BUTTON)) {
             run_result();
             break;
+        }
+
+        if (bt_cmd == 9) {
+            //    tail_control(TAIL_ANGLE_STOP);
+                forward = 1;
+                ev3_led_set_color(LED_ORANGE);
         }
 
         /* 参照しているコース配列が切り替わったことをLEDで知らせます */
@@ -397,6 +457,25 @@ void main_task(intptr_t unused)
         /* 現在の走行距離を取得 */
         distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
 
+        if ( 100 >= rgb_level.r &&                             /* TODO 01: glay検出用*/
+            rgb_level.g <= 100 &&                             /* TODO 01: glay検出用*/
+            300 < (rgb_level.r + rgb_level.g + rgb_level.b)) {  /* TODO 01: glay検出用*/
+
+            glay++;                                           /* TODO 01: glay検出用*/
+
+        //    ev3_speaker_set_volume(VOLUME);
+        //    ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
+         }                                                     /* TODO 01: glay検出用*/
+         else {                                                /* TODO 01: glay検出用*/
+             glay = 0;                                         /* TODO 01: glay検出用*/
+         }                                                     /* TODO 01: glay検出用*/
+         if (glay == 1) {
+                 turn = 0;
+                 ev3_led_set_color(LED_RED);
+         }
+
+
+
         /* 区間変更を監視、行うプログラム */
         if (distance_now >= mCourse[count].getDis()) {      //TODO :2 コース関連 だいぶ改善されました
             course_number  = mCourse[count].getCourse_num();      //TODO :2 コース関連 だいぶ改善されました
@@ -406,32 +485,118 @@ void main_task(intptr_t unused)
             count++;      //TODO :2 コース関連 だいぶ改善されました
         }      //TODO :2 コース関連 だいぶ改善されました
 
+/*============================================================
+========================ゲートをくぐる=========================
+============================================================*/
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
-            ev3_led_set_color(LED_RED);
-            syslog(LOG_NOTICE, "障害物検知\r");
-            carHorn();
-            for (int i = 0; i < TAIL_ANGLE_STOP; i++) {
-                tail_control(i);
-                clock->sleep(4);
+            ev3_speaker_set_volume(VOLUME);
+            ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
+
+            for (int angle = 75; angle >= 66; angle--)
+        	{
+                if (ev3_button_is_pressed(BACK_BUTTON)) break;
+        		if(angle >= 73){
+        			leftMotor->setPWM(17);
+        			rightMotor->setPWM(16);
+        		}else{
+        			leftMotor->setPWM(0);
+        			rightMotor->setPWM(0);
+        		}
+        		clock->reset();
+        		clock->sleep(1);
+        		while (clock->now() <= 400){
+                    syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
+        			tail_control(angle);
+        			clock->sleep(4);
+        		}
+        	}
+            clock->reset();
+            clock->sleep(1);
+            while (clock->now() <= 2000) {
+                leftMotor->setPWM(20);
+                rightMotor->setPWM(19);
+                tail_control(66);
+            }
+            clock->reset();
+            clock->sleep(1);
+            while (clock->now() <= 2000) {
+                leftMotor->setPWM(0);
+                rightMotor->setPWM(0);
+                tail_control(66);
             }
 
-            // balancer.setCommand(forward, turn);   // <1>
-            // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-            // pwm_L = balancer.getPwmRight();       // <3>
-            // pwm_R = balancer.getPwmLeft();        // <3>
-            //
-            // leftMotor->setPWM(pwm_L);
-            // rightMotor->setPWM(pwm_R);
-            leftMotor->setPWM(-10);
-            rightMotor->setPWM(-10);
-            clock->sleep(1000);
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
+
+            int count = 0;
+            int look_flag = 0;
+            int all_flag = 0;
+            while (all_flag == 0) {
+                while(count != 1 && look_flag == 1){
+                    if((rgb_level.r + rgb_level.g + rgb_level.b) <= 25) {
+                            ev3_speaker_set_volume(VOLUME);
+                            ev3_speaker_play_tone(NOTE_B6, MY_SOUND_MANUAL_STOP);
+                            syslog(LOG_NOTICE, "黒色検知！");
+                            count++;
+                            leftMotor->setPWM(-25);
+                    		rightMotor->setPWM(24);
+                            tail_control(66);
+                            all_flag = 1;
+                    }
+                    colorSensor->getRawColor(rgb_level);
+                    syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
+                    if (ev3_button_is_pressed(BACK_BUTTON)) break;
+            		leftMotor->setPWM(-25);
+            		rightMotor->setPWM(24);
+            		tail_control(66);
+            		clock->sleep(60);
+                }
+                while((rgb_level.r + rgb_level.g + rgb_level.b) >= 25) {
+                    colorSensor->getRawColor(rgb_level);
+                    leftMotor->setPWM(-5);
+                    rightMotor->setPWM(5);
+                    tail_control(66);
+                    look_flag = 1;
+                    clock->sleep(90);
+                }
+            }
+            clock->reset();
+            clock->sleep(1);
+            /*
+            while (clock->now() <= 800) {
+                leftMotor->setPWM(-14);
+                rightMotor->setPWM(13);
+                tail_control(66);
+            }*/
             while (1) {
-                // syslog(LOG_NOTICE, "停止中？\r");
+                leftMotor->setPWM(0);
+                rightMotor->setPWM(0);
+                tail_control(66);
             }
         }
+            /*while(1){
+        		if (ev3_button_is_pressed(BACK_BUTTON)) break;
+                colorSensor->getRawColor(rgb_level);
+                if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_TARGET ) {
+                    break;
+                }
+
+        		leftMotor->setPWM(18);
+        		rightMotor->setPWM(-17);
+        		tail_control(64);
+        		clock->sleep(4);
+        	}*/
+
+            /*ev3_led_set_color(LED_RED);
+            tail_control(angle);
+
+            clock->wait(10000);
+
+
+            break;*/
+
+
+
+
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
@@ -481,18 +646,25 @@ void main_task(intptr_t unused)
 
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
-        balancer.setCommand(forward, turn);   // <1>
-        balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-        pwm_L = balancer.getPwmRight();       // <3>
-        pwm_R = balancer.getPwmLeft();        // <3>
+        if (balancer_stop == 0) {
+            // balancer.setCommand(forward, turn);   // <1>
+            // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+            // pwm_L = balancer.getPwmRight();       // <3>
+            // pwm_R = balancer.getPwmLeft();        // <3>
+            //
+            // leftMotor->setPWM(pwm_L);
+            // rightMotor->setPWM(pwm_R);
+            balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
+        }
 
-        leftMotor->setPWM(pwm_L);
-        rightMotor->setPWM(pwm_R);
 
 
         /* ログを送信する処理　*/
         // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
         syslog(LOG_NOTICE, "D:%5d, G:%3d, flag:%5d, RGB%3d\r", distance_now, gyro, gyro_flag, rgb_total);
+        // syslog(LOG_NOTICE, "D:%5d, G:%3d, T:%3d, L:%3d, R:%3d\r", distance_now, gyro, turn, pwm_L, pwm_R);
+        // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
+        // syslog(LOG_NOTICE, "forward: %d\r", forward);
         // if (bt_cmd == 1)
         // {
         //     syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
@@ -524,15 +696,36 @@ void main_task(intptr_t unused)
 
         clock->sleep(4); /* 4msec周期起動 */
     }
+    tail_control(80);
     leftMotor->reset();
     rightMotor->reset();
     tailMotor->reset();
+
 
     ter_tsk(BT_TASK);
     fclose(bt);
 
     ext_tsk();
 }
+
+// void balancer(void) {
+//     /* 倒立振子制御API に渡すパラメータを取得する */
+//     motor_ang_l = leftMotor->getCount();
+//     motor_ang_r = rightMotor->getCount();
+//     gyro = gyroSensor->getAnglerVelocity();
+//     volt = ev3_battery_voltage_mV();
+//
+//     /* 倒立振子制御APIを呼び出し、倒立走行するための */
+//     /* 左右モータ出力値を得る */
+//     balancer.setCommand(forward, turn);   // <1>
+//     balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+//     pwm_L = balancer.getPwmRight();       // <3>
+//     pwm_R = balancer.getPwmLeft();        // <3>
+//
+//     leftMotor->setPWM(pwm_L);
+//     rightMotor->setPWM(pwm_R);
+//
+// }
 
 //*****************************************************************************
 // 関数名 : sonar_alert
@@ -543,11 +736,11 @@ void main_task(intptr_t unused)
 static int32_t sonar_alert(void)
 {
     static uint32_t counter = 0;
-    static int32_t alert = 0;
+    int32_t alert = 0;
 
     int32_t distance;
 
-    if (++counter == 40/4) /* 約40msec周期毎に障害物検知  */
+    if (++counter == 4/4) /* 約40msec周期毎に障害物検知  */
     {
         /*
          * 超音波センサによる距離測定周期は、超音波の減衰特性に依存します。
@@ -568,6 +761,7 @@ static int32_t sonar_alert(void)
 
     return alert;
 }
+
 
 //*****************************************************************************
 // 関数名 : tail_control
@@ -590,6 +784,32 @@ static void tail_control(int32_t angle)
 
     tailMotor->setPWM(pwm);
 }
+
+//*****************************************************************************
+// 関数名 : tail_control2
+// 引数 : angle (モータ目標角度[度])
+// 返り値 : 無し
+// 概要 : 走行体完全停止用モータの角度制御
+//*****************************************************************************
+// static void tail_control2(int32_t angle)
+// {
+//     while (angle != tailMotor->getCount()) {
+//         int pwm = (int)pid_tail.calcControl(angle - tailMotor->getCount()); /* PID制御 */
+//         /* PWM出力飽和処理 */
+//         if (pwm > PWM_ABS_MAX)
+//         {
+//             pwm = PWM_ABS_MAX;
+//         }
+//         else if (pwm < -PWM_ABS_MAX)
+//         {
+//             pwm = -PWM_ABS_MAX;
+//         }
+//
+//         // syslog(LOG_NOTICE, "pwm : %d\r", pwm);
+//
+//         tailMotor->setPWM(pwm);
+//     }
+// }
 
 //*****************************************************************************
 // 関数名 : bt_task
@@ -661,11 +881,13 @@ void bt_task(intptr_t unused)
         if (bt_cmd == 1 || bt_cmd == 2) {
             clock->reset();
         }
-        else if (bt_cmd == '\r') {
+        else if (bt_cmd == '\r' && lapTime_count < 100) {
             syslog(LOG_NOTICE, "DEBUG, TIME : //////////////////////////////\r");
-            syslog(LOG_NOTICE, "DEBUG, TIME : %d.%03d s\r", clock->now() / 1000, clock->now() % 1000);
+            syslog(LOG_NOTICE, "DEBUG, TIME : %d.%03d s , 距離 : %d.%d m\r", clock->now() / 1000, clock->now() % 1000, distance_now / 1000, distance_now % 1000);
             syslog(LOG_NOTICE, "DEBUG, TIME : //////////////////////////////\r");
-            time[lapTime_count++] = clock->now();
+            time[0][lapTime_count] = clock->now();
+            time[1][lapTime_count] = distance_now;
+            lapTime_count++;
         }
     }
 }
@@ -677,9 +899,30 @@ void bt_task(intptr_t unused)
 // 概要 : クラクションを鳴らす
 //*****************************************************************************
 static void carHorn() {
+    carHorn(TONE
+    );
+}
+
+//*****************************************************************************
+// 関数名 : carHorn
+// 引数 : double tone
+// 返り値 : なし
+// 概要 : クラクションを鳴らす
+//*****************************************************************************
+static void carHorn(double tone) {
+    carHorn(tone, MY_SOUND_MANUAL_STOP);
+}
+
+//*****************************************************************************
+// 関数名 : carHorn
+// 引数 : double tone, int sound_time
+// 返り値 : なし
+// 概要 : クラクションを鳴らす
+//*****************************************************************************
+static void carHorn(double tone, int sound_time) {
     ev3_speaker_set_volume(VOLUME);
-    //ev3_speaker_play_file(&memfile, MYSOUND_MANUAL_STOP);
-    ev3_speaker_play_tone(TONE, MYSOUND_MANUAL_STOP);
+    //ev3_speaker_play_file(&memfile, MY_SOUND_MANUAL_STOP);
+    ev3_speaker_play_tone(tone, sound_time);
 }
 
 //*****************************************************************************
@@ -689,9 +932,29 @@ static void carHorn() {
 // 概要 : 走行結果を表示する
 //*****************************************************************************
 static void run_result() {
-    syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
-    for (int i = 0; i < lapTime_count; i++) {
-        syslog(LOG_NOTICE, "DEBUG, TIME(%3d) : %d.%03d s\r",i + 1 , time[i] / 1000, time[i] % 1000);
+    if (lapTime_count > 0) {
+        syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
+        for (int i = 0; i < lapTime_count; i++) {
+            syslog(LOG_NOTICE, "TIME(%3d) : %d.%03d s , 距離 : %d.%03d m",i + 1 , time[0][i] / 1000, time[0][i] % 1000, time[1][i] / 1000, time[1][i] % 1000);
+            syslog(LOG_NOTICE, "(%3d m/s)\r",  (time[1][i] / 1000) / (time[1][i] / 1000));
+        }
+        syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
     }
-    syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
+}
+
+//*****************************************************************************
+// 関数名 : balance
+// 引数 : balancer, forward, turn, gyro, motor_ang_r, motor_ang_l, volt
+// 返り値 : なし
+// 概要 : 走行結果を表示する
+//*****************************************************************************
+static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt) {
+    int8_t    pwm_L, pwm_R;
+    balancer.setCommand(forward, turn);   // <1>
+    balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+    pwm_L = balancer.getPwmRight();       // <3>
+    pwm_R = balancer.getPwmLeft();        // <3>
+
+    leftMotor->setPWM(pwm_L);
+    rightMotor->setPWM(pwm_R);
 }
