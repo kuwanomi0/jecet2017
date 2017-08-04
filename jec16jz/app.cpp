@@ -44,17 +44,18 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_TARGET          240  /* 中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
-#define KLP                 0.8  /* LPF用係数*/
+#define FORWARD_X           0.95
+#define KLP                 0.6  /* LPF用係数*/
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
 
 /* 尻尾に関するマクロ */
-#define TAIL_ANGLE_STAND_UP   92 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_ROKET     100 /* ロケットダッシュ時の角度[度] */
+#define TAIL_ANGLE_STAND_UP   96 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_ROKET     101 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       75 /* 停止処理時の角度[度] */
-#define KP_TAIL            1.00F /* 尻尾用定数P */
+#define KP_TAIL            1.20F /* 尻尾用定数P */
 #define KI_TAIL            0.01F /* 尻尾用定数I */
 #define KD_TAIL             1.0F /* 尻尾用定数D */
 #define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
@@ -88,36 +89,49 @@ Distance distance_way;
 
 /* Lコース */
 static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されました これで30.36secでた。
-    { 0,     0,122,  0, 0.0500F, 0.0000F, 1.0000F }, //スタート
-    { 1,  2000,106,  0, 0.1200F, 0.0002F, 0.7000F }, //大きく右
-    { 2,  3927,109,  0, 0.1150F, 0.0002F, 0.5000F }, //左
-    { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.0000F }, //直
-    { 4,  5209,109,  0, 0.1150F, 0.0002F, 0.5000F }, //左
-    { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.0000F }, //直
-    { 6,  6674,106,  0, 0.1300F, 0.0002F, 1.2000F }, //左
-    { 7,  7562,107,  0, 0.1100F, 0.0002F, 0.5000F }, //右
-    { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.0000F }, //直GOOLまで
-    {10, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {11, 10351,106,  0, 0.1150F, 0.0002F, 0.5000F }, //左
-    {12, 11576, 71,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {13, 11766,121,  0, 0.0500F, 0.0000F, 1.0000F }, //直
-    {14, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    { 0,     0,122,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+    { 1,  2000,112,  0, 0.1400F, 0.0002F, 2.1000F }, //大きく右
+    { 2,  3927,115,  0, 0.1150F, 0.0002F, 1.7000F }, //左
+    { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
+    { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
+    { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
+    { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
+    { 7,  7562,112,  0, 0.1400F, 0.0002F, 2.0000F }, //右
+    { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
+    { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {10, 10351,100,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+    {11, 11576, 50,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {12, 11766, 50,  0, 0.0500F, 0.0000F, 1.0000F }, //直
+    {13, 11946,  5,  0, 0.0500F, 0.0000F, 1.0000F }, //直
+    {14, 12200,100,  0, 0.1500F, 0.0000F, 1.3000F }, //直
+    {15, 12450,  5,  0, 0.1500F, 0.0000F, 1.3000F }, //直
+    {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
 /* Rコース */
 static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
     { 0,     0,122,  0, 0.0500F, 0.0000F, 1.0000F }, //スタート
-    { 1,  2200,106,  0, 0.1200F, 0.0002F, 0.4900F }, //大きく右
-    { 1,  3700,106,  0, 0.1000F, 0.0001F, 0.5100F }, //大きく右
-    { 2,  5400,108,  0, 0.1200F, 0.0001F, 0.8000F }, //左やや直進
-    { 3,  6350,103,  0, 0.1260F, 0.0002F, 0.4500F }, //強く左
-    { 4,  7150,106,  0, 0.1100F, 0.0002F, 0.5000F }, //緩やかに大きく右
-    { 5,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
-    { 6, 10300,122,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-    { 7, 10530,106,  0, 0.1200F, 0.0002F, 0.5000F }, //左
-    { 8, 11750,106,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    { 9, 12167,106,  0, 0.1200F, 0.0002F, 0.6000F }, //直?
-    {10, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
+    { 2,  3700,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
+    { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
+    { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
+    { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
+    { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
+    { 7, 10400,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+    { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+    { 9, 10550,106,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+    {10, 11900, 70,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {11, 12150, 50,  0, 0.1200F, 0.0002F, 0.6000F }, //直?
+    {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+};
+/* 階段用コースファイル */
+static Course gCourseKaidan[] {  // TODO 2: コース関連 だいぶ改善されました これで30.36secでた。
+    { 1,     0, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    { 2,   140, 20,  0, 0.1150F, 0.0002F, 1.0000F }, //前
+    { 3,   425, 20,  0, 0.1150F, 0.0002F, 1.0000F }, //初段
+    { 4,   750,  5,  0, 0.1150F, 0.0002F, 1.0000F }, //二段
+    { 5,   800,  5,  0, 0.2000F, 0.0002F, 2.0000F }, //左
+    {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
 /* デフォルト */
@@ -155,6 +169,10 @@ void main_task(intptr_t unused)
     int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
+    int gyro_flag = 0;
+    int distance_kaidan;
+    int tail_flags = 0;
+    int kaiden = 1;
     Course* mCourse = NULL;
 
     /* 各オブジェクトを生成・初期化する */
@@ -172,6 +190,11 @@ void main_task(intptr_t unused)
     ev3_lcd_draw_string("EV3way-ET 16JZ", 0, CALIB_FONT_HEIGHT*1);
 
     /* 尻尾モーターのリセット */
+    /* 尻尾モーターのリセット */
+    for(int i = 0; i < 300; i++){
+        tailMotor->setPWM(-3);
+        clock->wait(1);
+    }
     tailMotor->reset();
 
     /* Open Bluetooth file */
@@ -204,6 +227,12 @@ void main_task(intptr_t unused)
             mCourse = gCourseR;
             break; /* リモートスタート */
         }
+        /* 階段コース */
+        if (bt_cmd == 3)
+        {
+            mCourse = gCourseKaidan;
+            break; /* リモートスタート */
+        }
 
         if (touchSensor->isPressed())
         {
@@ -220,7 +249,7 @@ void main_task(intptr_t unused)
             angle += 0.1;
             bt_cmd = 0; // コマンドリセット
         }
-        syslog(LOG_NOTICE, "DEBUG, angle : %d\r", (int)angle);
+        // syslog(LOG_NOTICE, "DEBUG, angle : %d\r", (int)angle);
 
         // 回転
         if (bt_cmd == 9 && rotation_flag == 0) {
@@ -347,8 +376,11 @@ void main_task(intptr_t unused)
         /* 尻尾の制御 */
         if (bt_cmd == 6) {  // TODO :4 おまけ コマンド終了停止用の角度変更を回避するための分岐
         }
-        else if(roket++ < 50)                                              //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
+        else if(roket++ < 25)                                              //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
             tail_control(TAIL_ANGLE_ROKET); /* ロケット走行用角度に制御 */  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
+        else if(tail_flags == 1){
+            tail_control(80); /* バランス走行用角度に制御 */
+        }
         else {
             tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
         }
@@ -398,7 +430,7 @@ void main_task(intptr_t unused)
             leftMotor->setPWM(0);
             rightMotor->setPWM(0);
             while (1) {
-                syslog(LOG_NOTICE, "停止中？\r");
+                // syslog(LOG_NOTICE, "停止中？\r");
             }
         }
         else {
@@ -407,10 +439,9 @@ void main_task(intptr_t unused)
                 forward = -30; //TODO 4: おまけコマンド停止処理用
             }
             else {
-                forward = forward_course; /* 前進命令 */
+                forward = forward_course * FORWARD_X; /* 前進命令 */
             }
             /* PID制御 */
-            // turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - rgb_total);
             turn =  pid_walk.calcControl(RGB_TARGET - rgb_total) + turn_course;
         }
 
@@ -420,6 +451,61 @@ void main_task(intptr_t unused)
         gyro = gyroSensor->getAnglerVelocity();
         volt = ev3_battery_voltage_mV();
 
+        // TODO :KAIDAN
+        if ((gyro >= 100 || gyro_flag >= 1) && roket >= 45) {
+            gyro_flag++;
+            if(gyro_flag <= 750) {
+                forward = -5;
+            }
+            else if (gyro_flag <= 1500) {
+                forward = 0;
+            }
+            else if (gyro_flag <= 2250 && kaiden == 1) {
+                forward = 0;
+                turn = -26;
+            }
+            else if (gyro_flag <= 2000 && kaiden == 2) {
+                forward = 0;
+                turn = -26;
+            }
+            // else if (gyro_flag <= 2000) {
+            //     forward = -5;
+            //     turn = -turn;
+            // }
+            else if (gyro_flag <= 3000) {
+                forward = 2;
+            }
+            else if (kaiden == 1) {
+                gyro_flag = 0;
+                kaiden = 2;
+            }
+            else {
+                gyro_flag = 0;
+            }
+        }
+        // if ((gyro >= 100 || gyro_flag >= 1) && roket >= 45) {
+        //     syslog(LOG_NOTICE, "wwwGwwwYwwwRwwwOwww\r");
+        //     if(gyro_flag >= 500 && distance_now <= distance_kaidan) {
+        //
+        //         syslog(LOG_NOTICE, "GYRO GYRO GYRO GYRO !!!\r");
+        //         forward = 70;
+        //     }
+        //     else if (gyro_flag >= 500) {
+        //         syslog(LOG_NOTICE, "ああああああああああああああああああああああああああああああああああああ\r");
+        //         forward = 0;
+        //         tail_flags = 1;
+        //     }
+        //     else {
+        //         syslog(LOG_NOTICE, "FLAG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r");
+        //         gyro_flag++;
+        //         forward = -20;
+        //         distance_kaidan = distance_now + 150;
+        //     }
+        // }
+
+        // if (gyro_flag >= 500) {
+        //
+        // }
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
         balancer.setCommand(forward, turn);   // <1>
@@ -430,9 +516,10 @@ void main_task(intptr_t unused)
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
 
+
         /* ログを送信する処理　*/
-        // syslog(LOG_NOTICE, "D:%5d, G:%3d, T:%3d, L:%3d, R:%3d\r", distance_now, gyro, turn, pwm_L, pwm_R);
-        syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d\r", distance_now, gyro, volt, rgb_total);
+        // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
+        syslog(LOG_NOTICE, "D:%5d, G:%3d, flag:%5d, RGB%3d\r", distance_now, gyro, gyro_flag, rgb_total);
         // if (bt_cmd == 1)
         // {
         //     syslog(LOG_NOTICE, "DEBUG, DIS:%5d, GYRO:%3d, C:%2d, F:%3d\r", distance_now, gyro, course_number, forward);
