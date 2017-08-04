@@ -44,7 +44,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_TARGET          240 /*115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
-#define FORWARD_X           0.95
+#define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
 
 /* 超音波センサーに関するマクロ */
@@ -68,7 +68,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
-// static void tail_control2(int32_t angle);
 static void carHorn();
 static void carHorn(double tone);
 static void carHorn(double tone, int sound_time);
@@ -87,7 +86,7 @@ Clock*          clock;
 Clock*          clock_gate;
 
 /* インスタンスの生成 */
-Balancer balancer;              // <1>
+Balancer balancer;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 Distance distance_way;
@@ -106,10 +105,10 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
     { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     {10, 10351,100,  0, 0.1150F, 0.0002F, 1.5000F }, //左
     {11, 11576, 50,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {12, 11766, 50,  0, 0.0500F, 0.0000F, 1.0000F }, //直
-    {13, 11946,  5,  0, 0.0500F, 0.0000F, 1.0000F }, //直
-    {14, 12200,100,  0, 0.1500F, 0.0000F, 1.3000F }, //直
-    {15, 12450,  5,  0, 0.1500F, 0.0000F, 1.3000F }, //直
+    {12, 11766, 50,  0, 0.0500F, 0.0000F, 1.0000F }, //階段前
+    {13, 11946,  5,  0, 0.0500F, 0.0000F, 1.0000F }, //初段上がり
+    {14, 12200,100,  0, 0.1500F, 0.0000F, 1.3000F }, //初段回転後二段上がり上がり
+    {15, 12450,  5,  0, 0.1500F, 0.0000F, 1.3000F }, //二段開店
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
@@ -145,21 +144,18 @@ static Course gCourse[] {
     { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
 };
 
-// サウンド
+/* サウンド */
 #define NOTE_C4 (261.63)
 #define NOTE_B6 (1975.53)
 #define MY_SOUND_MANUAL_STOP (100)
 #define VOLUME 50
 #define TONE NOTE_C4
-// ファンファーレ
-// memfile_t memfile;
-// ev3_memfile_load("fa01101.wav", &memfile);
 
-//　タイム格納用
+/* タイム格納用 */
 static int time[2][100];
 static int lapTime_count = 0;
 
-// 走行距離
+/* 走行距離 */
 static int32_t distance_now; /*現在の走行距離を格納する変数 */
 
 
@@ -199,7 +195,6 @@ void main_task(intptr_t unused)
     ev3_lcd_draw_string("EV3way-ET 16JZ", 0, CALIB_FONT_HEIGHT*1);
     ev3_lcd_draw_string("             M", 0, CALIB_FONT_HEIGHT*2);
 
-    /* 尻尾モーターのリセット */
     /* 尻尾モーターのリセット */
     for(int i = 0; i < 300; i++){
         tailMotor->setPWM(-3);
@@ -412,12 +407,6 @@ void main_task(intptr_t unused)
         int32_t gyro, volt;
         // int32_t distance_now; /*現在の走行距離を格納する変数 */　// bt_taskからも参照できるよう上に移動させました
 
-        /* バックボタンによる停止処理です */
-        if (ev3_button_is_pressed(BACK_BUTTON)) {
-            run_result();
-            break;
-        }
-
         if (bt_cmd == 9) {
             //    tail_control(TAIL_ANGLE_STOP);
                 forward = 1;
@@ -448,8 +437,8 @@ void main_task(intptr_t unused)
         colorSensor->getRawColor(rgb_level); /* RGB取得 */
         rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
-        /* 転倒時の停止処理 */
-        if(rgb_total <= RGB_NULL) {
+        /* バックボタン, 転倒時停止処理 */
+        if (ev3_button_is_pressed(BACK_BUTTON) || rgb_total <= RGB_NULL) {
             run_result();
             break;
         }
@@ -457,18 +446,18 @@ void main_task(intptr_t unused)
         /* 現在の走行距離を取得 */
         distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
 
-        if ( 100 >= rgb_level.r &&                             /* TODO 01: glay検出用*/
-            rgb_level.g <= 100 &&                             /* TODO 01: glay検出用*/
-            300 < (rgb_level.r + rgb_level.g + rgb_level.b)) {  /* TODO 01: glay検出用*/
+        if ( 100 >= rgb_level.r &&                             /* TODO 01: glay検出用 */
+            rgb_level.g <= 100 &&                             /* TODO 01: glay検出用 */
+            300 < (rgb_level.r + rgb_level.g + rgb_level.b)) {  /* TODO 01: glay検出用 */
 
-            glay++;                                           /* TODO 01: glay検出用*/
+            glay++;                                           /* TODO 01: glay検出用 */
 
         //    ev3_speaker_set_volume(VOLUME);
         //    ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
-         }                                                     /* TODO 01: glay検出用*/
-         else {                                                /* TODO 01: glay検出用*/
-             glay = 0;                                         /* TODO 01: glay検出用*/
-         }                                                     /* TODO 01: glay検出用*/
+         }                                                     /* TODO 01: glay検出用 */
+         else {                                                /* TODO 01: glay検出用 */
+             glay = 0;                                         /* TODO 01: glay検出用 */
+         }                                                     /* TODO 01: glay検出用 */
          if (glay == 1) {
                  turn = 0;
                  ev3_led_set_color(LED_RED);
@@ -477,13 +466,13 @@ void main_task(intptr_t unused)
 
 
         /* 区間変更を監視、行うプログラム */
-        if (distance_now >= mCourse[count].getDis()) {      //TODO :2 コース関連 だいぶ改善されました
-            course_number  = mCourse[count].getCourse_num();      //TODO :2 コース関連 だいぶ改善されました
-            forward_course = mCourse[count].getForward();      //TODO :2 コース関連 だいぶ改善されました
+        if (distance_now >= mCourse[count].getDis()) { //TODO :2 コース関連 だいぶ改善されました
+            course_number  = mCourse[count].getCourse_num();
+            forward_course = mCourse[count].getForward();
             turn_course    = mCourse[count].getTurn();
-            pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);      //TODO :2 コース関連 だいぶ改善されました
-            count++;      //TODO :2 コース関連 だいぶ改善されました
-        }      //TODO :2 コース関連 だいぶ改善されました
+            pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
+            count++;
+        }
 
 /*============================================================
 ========================ゲートをくぐる=========================
@@ -593,9 +582,6 @@ void main_task(intptr_t unused)
 
 
             break;*/
-
-
-
 
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
@@ -786,32 +772,6 @@ static void tail_control(int32_t angle)
 }
 
 //*****************************************************************************
-// 関数名 : tail_control2
-// 引数 : angle (モータ目標角度[度])
-// 返り値 : 無し
-// 概要 : 走行体完全停止用モータの角度制御
-//*****************************************************************************
-// static void tail_control2(int32_t angle)
-// {
-//     while (angle != tailMotor->getCount()) {
-//         int pwm = (int)pid_tail.calcControl(angle - tailMotor->getCount()); /* PID制御 */
-//         /* PWM出力飽和処理 */
-//         if (pwm > PWM_ABS_MAX)
-//         {
-//             pwm = PWM_ABS_MAX;
-//         }
-//         else if (pwm < -PWM_ABS_MAX)
-//         {
-//             pwm = -PWM_ABS_MAX;
-//         }
-//
-//         // syslog(LOG_NOTICE, "pwm : %d\r", pwm);
-//
-//         tailMotor->setPWM(pwm);
-//     }
-// }
-
-//*****************************************************************************
 // 関数名 : bt_task
 // 引数 : unused
 // 返り値 : なし
@@ -946,14 +906,14 @@ static void run_result() {
 // 関数名 : balance
 // 引数 : balancer, forward, turn, gyro, motor_ang_r, motor_ang_l, volt
 // 返り値 : なし
-// 概要 : 走行結果を表示する
+// 概要 : バランス走行制御を行う
 //*****************************************************************************
 static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt) {
     int8_t    pwm_L, pwm_R;
-    balancer.setCommand(forward, turn);   // <1>
-    balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-    pwm_L = balancer.getPwmRight();       // <3>
-    pwm_R = balancer.getPwmLeft();        // <3>
+    balancer.setCommand(forward, turn);
+    balancer.update(gyro, motor_ang_r, motor_ang_l, volt);
+    pwm_L = balancer.getPwmRight();
+    pwm_R = balancer.getPwmLeft();
 
     leftMotor->setPWM(pwm_L);
     rightMotor->setPWM(pwm_R);
