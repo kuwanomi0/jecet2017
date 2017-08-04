@@ -170,7 +170,6 @@ void main_task(intptr_t unused)
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
     int gyro_flag = 0;
-    int distance_kaidan;
     int tail_flags = 0;
     int kaiden = 1;
     Course* mCourse = NULL;
@@ -468,10 +467,6 @@ void main_task(intptr_t unused)
                 forward = 0;
                 turn = -26;
             }
-            // else if (gyro_flag <= 2000) {
-            //     forward = -5;
-            //     turn = -turn;
-            // }
             else if (gyro_flag <= 3000) {
                 forward = 2;
             }
@@ -483,29 +478,7 @@ void main_task(intptr_t unused)
                 gyro_flag = 0;
             }
         }
-        // if ((gyro >= 100 || gyro_flag >= 1) && roket >= 45) {
-        //     syslog(LOG_NOTICE, "wwwGwwwYwwwRwwwOwww\r");
-        //     if(gyro_flag >= 500 && distance_now <= distance_kaidan) {
-        //
-        //         syslog(LOG_NOTICE, "GYRO GYRO GYRO GYRO !!!\r");
-        //         forward = 70;
-        //     }
-        //     else if (gyro_flag >= 500) {
-        //         syslog(LOG_NOTICE, "ああああああああああああああああああああああああああああああああああああ\r");
-        //         forward = 0;
-        //         tail_flags = 1;
-        //     }
-        //     else {
-        //         syslog(LOG_NOTICE, "FLAG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r");
-        //         gyro_flag++;
-        //         forward = -20;
-        //         distance_kaidan = distance_now + 150;
-        //     }
-        // }
 
-        // if (gyro_flag >= 500) {
-        //
-        // }
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
         balancer.setCommand(forward, turn);   // <1>
