@@ -527,9 +527,16 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 3000) {
+            while (clock->now() <= 8000) {
                 leftMotor->setPWM(-5);
                 rightMotor->setPWM(-6);
+                tail_control(66);
+            }
+            clock->reset();
+            clock->sleep(1);
+            while (clock->now() <= 8000) {
+                leftMotor->setPWM(20);
+                rightMotor->setPWM(21);
                 tail_control(66);
             }
 
