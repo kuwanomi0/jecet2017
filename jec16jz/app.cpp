@@ -41,7 +41,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          240 /*115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          320 /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X           0.95
@@ -55,9 +55,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define TAIL_ANGLE_ROKET     101 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       75 /* 停止処理時の角度[度] */
-#define KP_TAIL            1.20F /* 尻尾用定数P */
+#define KP_TAIL            2.0F /* 尻尾用定数P */
 #define KI_TAIL            0.01F /* 尻尾用定数I */
-#define KD_TAIL             1.0F /* 尻尾用定数D */
+#define KD_TAIL             5.0F /* 尻尾用定数D */
 #define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
 
 /* LCDフォントサイズ */
@@ -141,7 +141,7 @@ static Course gCourseKaidan[] {  // TODO 2: コース関連 だいぶ改善さ�
 
 /* デフォルト */
 static Course gCourse[] {
-    { 0,     0, 50,  0, 0.1000F, 0.0001F, 1.0000F }, //スタート
+    { 0,     0, 20,  0, 0.1000F, 0.0001F, 1.0000F }, //スタート
     { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
 };
 
@@ -493,10 +493,10 @@ void main_task(intptr_t unused)
             ev3_speaker_set_volume(VOLUME);
             ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
 
-            for (int angle = 75; angle >= 66; angle--)
+            for (int angle = 79; angle >= 70; angle--)
         	{
                 if (ev3_button_is_pressed(BACK_BUTTON)) break;
-        		if(angle >= 73){
+        		if(angle >= 77){
         			leftMotor->setPWM(17);
         			rightMotor->setPWM(16);
         		}else{
@@ -523,50 +523,57 @@ void main_task(intptr_t unused)
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(66);
-            }
-
-
-            int count = 0;
-            int look_flag = 0;
-            int all_flag = 0;
-            while (all_flag == 0) {
-                while(count != 1 && look_flag == 1){
-                    if((rgb_level.r + rgb_level.g + rgb_level.b) <= 25) {
-                            ev3_speaker_set_volume(VOLUME);
-                            ev3_speaker_play_tone(NOTE_B6, MY_SOUND_MANUAL_STOP);
-                            syslog(LOG_NOTICE, "黒色検知！");
-                            count++;
-                            leftMotor->setPWM(-25);
-                    		rightMotor->setPWM(24);
-                            tail_control(66);
-                            all_flag = 1;
-                    }
-                    colorSensor->getRawColor(rgb_level);
-                    syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
-                    if (ev3_button_is_pressed(BACK_BUTTON)) break;
-            		leftMotor->setPWM(-25);
-            		rightMotor->setPWM(24);
-            		tail_control(66);
-            		clock->sleep(60);
-                }
-                while((rgb_level.r + rgb_level.g + rgb_level.b) >= 25) {
-                    colorSensor->getRawColor(rgb_level);
-                    leftMotor->setPWM(-5);
-                    rightMotor->setPWM(5);
-                    tail_control(66);
-                    look_flag = 1;
-                    clock->sleep(90);
-                }
+                tail_control(70);
             }
             clock->reset();
             clock->sleep(1);
-            /*
-            while (clock->now() <= 800) {
-                leftMotor->setPWM(-14);
-                rightMotor->setPWM(13);
+            while (clock->now() <= 3000) {
+                leftMotor->setPWM(-5);
+                rightMotor->setPWM(-6);
                 tail_control(66);
-            }*/
+            }
+
+            //
+            // int count = 0;
+            // int look_flag = 0;
+            // int all_flag = 0;
+            // while (all_flag == 0) {
+            //     while(count != 1 && look_flag == 1){
+            //         if((rgb_level.r + rgb_level.g + rgb_level.b) <= 25) {
+            //                 ev3_speaker_set_volume(VOLUME);
+            //                 ev3_speaker_play_tone(NOTE_B6, MY_SOUND_MANUAL_STOP);
+            //                 syslog(LOG_NOTICE, "黒色検知！");
+            //                 count++;
+            //                 leftMotor->setPWM(-25);
+            //         		rightMotor->setPWM(24);
+            //                 tail_control(66);
+            //                 all_flag = 1;
+            //         }
+            //         colorSensor->getRawColor(rgb_level);
+            //         syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
+            //         if (ev3_button_is_pressed(BACK_BUTTON)) break;
+            // 		leftMotor->setPWM(-25);
+            // 		rightMotor->setPWM(24);
+            // 		tail_control(66);
+            // 		clock->sleep(60);
+            //     }
+            //     while((rgb_level.r + rgb_level.g + rgb_level.b) >= 25) {
+            //         colorSensor->getRawColor(rgb_level);
+            //         leftMotor->setPWM(-5);
+            //         rightMotor->setPWM(5);
+            //         tail_control(66);
+            //         look_flag = 1;
+            //         clock->sleep(90);
+            //     }
+            // }
+            // clock->reset();
+            // clock->sleep(1);
+            // /*
+            // while (clock->now() <= 800) {
+            //     leftMotor->setPWM(-14);
+            //     rightMotor->setPWM(13);
+            //     tail_control(66);
+            // }*/
             while (1) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
