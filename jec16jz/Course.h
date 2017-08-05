@@ -1,16 +1,24 @@
+/**
+ ******************************************************************************
+ ** ファイル名 : Course.h
+ ** クラス名   : Course
+ **
+ ** 概要 : コース情報を格納するクラス
+ ******************************************************************************
+ **/
 #ifndef COURSE_H
 #define COURSE_H
 
 class Course {
 
 private:
-    int course_num;
-    int dis;
-    int forward;
-    int turn;
-    float kp;
-    float ki;
-    float kd;
+    int course_num; /* 区間番号 */
+    int dis;        /* 設定距離 */
+    int forward;    /* 前進速度 */
+    int turn;       /* 旋回速度 */
+    float kp;       /* 係数P */
+    float ki;       /* 係数I */
+    float kd;       /* 係数D */
 
 public:
     Course(int course_num, int dis, int forward, int turn, float kp, float ki, float kd) {
