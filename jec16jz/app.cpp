@@ -398,8 +398,6 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
-    int balancer_stop = 0;
-
     /**
     * Main loop for the self-balance control algorithm
     */
@@ -503,6 +501,7 @@ void main_task(intptr_t unused)
         			clock->sleep(4);
         		}
         	}
+            /* 前進一回目のくぐり */
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 7000) {
@@ -510,6 +509,7 @@ void main_task(intptr_t unused)
                 rightMotor->setPWM(4);
                 tail_control(67);
             }
+            /* 一度停止して尻尾の調整 */
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 2000) {
@@ -517,6 +517,7 @@ void main_task(intptr_t unused)
                 rightMotor->setPWM(0);
                 tail_control(70);
             }
+            /* バックしてくぐる */
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 10000) {
@@ -524,6 +525,7 @@ void main_task(intptr_t unused)
                 rightMotor->setPWM(-3);
                 tail_control(66);
             }
+            /* 前進して2回目のくぐり */
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 9000) {
@@ -532,47 +534,7 @@ void main_task(intptr_t unused)
                 tail_control(67);
             }
 
-            //
-            // int count = 0;
-            // int look_flag = 0;
-            // int all_flag = 0;
-            // while (all_flag == 0) {
-            //     while(count != 1 && look_flag == 1){
-            //         if((rgb_level.r + rgb_level.g + rgb_level.b) <= 25) {
-            //                 ev3_speaker_set_volume(VOLUME);
-            //                 ev3_speaker_play_tone(NOTE_B6, MY_SOUND_MANUAL_STOP);
-            //                 syslog(LOG_NOTICE, "黒色検知！");
-            //                 count++;
-            //                 leftMotor->setPWM(-25);
-            //                 rightMotor->setPWM(24);
-            //                 tail_control(66);
-            //                 all_flag = 1;
-            //         }
-            //         colorSensor->getRawColor(rgb_level);
-            //         syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
-            //         if (ev3_button_is_pressed(BACK_BUTTON)) break;
-            //         leftMotor->setPWM(-25);
-            //         rightMotor->setPWM(24);
-            //         tail_control(66);
-            //         clock->sleep(60);
-            //     }
-            //     while((rgb_level.r + rgb_level.g + rgb_level.b) >= 25) {
-            //         colorSensor->getRawColor(rgb_level);
-            //         leftMotor->setPWM(-5);
-            //         rightMotor->setPWM(5);
-            //         tail_control(66);
-            //         look_flag = 1;
-            //         clock->sleep(90);
-            //     }
-            // }
-            // clock->reset();
-            // clock->sleep(1);
-            // /*
-            // while (clock->now() <= 800) {
-            //     leftMotor->setPWM(-14);
-            //     rightMotor->setPWM(13);
-            //     tail_control(66);
-            // }*/
+            /* ここから起き上がり */
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 200) {
@@ -629,35 +591,19 @@ void main_task(intptr_t unused)
                 rightMotor->setPWM(0);
                 tail_control(96);
             }
+
+            /*
+                ここから走行情報のリセット
+                これをしないと今の段階では倒立制御ができずすぐに倒れる
+            */
             /* 走行モーターエンコーダーリセット */
             leftMotor->reset();
             rightMotor->reset();
 
             /* ジャイロセンサーリセット */
             gyroSensor->reset();
-            balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */  // <1>
+            balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */
         }
-            /*while(1){
-                if (ev3_button_is_pressed(BACK_BUTTON)) break;
-                colorSensor->getRawColor(rgb_level);
-                if((rgb_level.r + rgb_level.g + rgb_level.b) <= RGB_TARGET ) {
-                    break;
-                }
-
-                leftMotor->setPWM(18);
-                rightMotor->setPWM(-17);
-                tail_control(64);
-                clock->sleep(4);
-            }*/
-
-            /*ev3_led_set_color(LED_RED);
-            tail_control(angle);
-
-            clock->wait(10000);
-
-
-            break;*/
-
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
@@ -707,20 +653,17 @@ void main_task(intptr_t unused)
 
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
-        if (balancer_stop == 0) {
-            // balancer.setCommand(forward, turn);   // <1>
-            // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-            // pwm_L = balancer.getPwmRight();       // <3>
-            // pwm_R = balancer.getPwmLeft();        // <3>
-            //
-            // leftMotor->setPWM(pwm_L);
-            // rightMotor->setPWM(pwm_R);
-            balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
-        }
+        // balancer.setCommand(forward, turn);   // <1>
+        // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+        // pwm_L = balancer.getPwmRight();       // <3>
+        // pwm_R = balancer.getPwmLeft();        // <3>
+        //
+        // leftMotor->setPWM(pwm_L);
+        // rightMotor->setPWM(pwm_R);
+        balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
 
 
-
-        /* ログを送信する処理　*/
+        /* ログを送信する処理 */
         // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
         // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
         if (bt_cmd == 1)
