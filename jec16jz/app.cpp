@@ -484,23 +484,23 @@ void main_task(intptr_t unused)
             ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
 
             for (int angle = 79; angle >= 70; angle--)
-        	{
+            {
                 if (ev3_button_is_pressed(BACK_BUTTON)) break;
-        		if(angle >= 77){
-        			leftMotor->setPWM(16);
-        			rightMotor->setPWM(16);
-        		}else{
-        			leftMotor->setPWM(0);
-        			rightMotor->setPWM(0);
-        		}
-        		clock->reset();
-        		clock->sleep(1);
-        		while (clock->now() <= 400){
+                if(angle >= 77){
+                    leftMotor->setPWM(16);
+                    rightMotor->setPWM(16);
+                }else{
+                    leftMotor->setPWM(0);
+                    rightMotor->setPWM(0);
+                }
+                clock->reset();
+                clock->sleep(1);
+                while (clock->now() <= 400){
                     syslog(LOG_NOTICE, "DEBUG, angle（尻尾の角度ぉぉぉぉ） : %d, T:%4d\r", (int)angle, (rgb_level.r + rgb_level.g + rgb_level.b));
-        			tail_control(angle);
-        			clock->sleep(4);
-        		}
-        	}
+                    tail_control(angle);
+                    clock->sleep(4);
+                }
+            }
             /* 前進一回目のくぐり */
             clock->reset();
             clock->sleep(1);
