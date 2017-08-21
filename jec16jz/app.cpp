@@ -41,7 +41,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          300  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          320  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
@@ -59,6 +59,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define KI_TAIL            0.02F /* 尻尾用定数I */
 #define KD_TAIL            14.0F /* 尻尾用定数D */
 #define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
+#define LOOK_UP_COLOR         28
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -180,6 +181,7 @@ void main_task(intptr_t unused)
     int8_t garage = 0;
     int garage_cnt = 0;
     int distance_tmp = 0;
+    int8_t hard_flag = 0;
     Course* mCourse = NULL;
 
     /* 各オブジェクトを生成・初期化する */
@@ -534,8 +536,13 @@ void main_task(intptr_t unused)
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 9000) {
-                leftMotor->setPWM(4);
-                rightMotor->setPWM(4);
+                int pwmL, pwmR;
+                colorSensor->getRawColor(rgb_level); /* RGB取得 */
+                pwmL = 5 + (rgb_level.r - LOOK_UP_COLOR) * 0.4;
+                pwmR = 5 + (LOOK_UP_COLOR - rgb_level.r) * 0.4;
+                syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
+                leftMotor->setPWM(pwmL);
+                rightMotor->setPWM(pwmR);
                 tail_control(67);
             }
 
@@ -570,31 +577,36 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 2000) {
+            while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(92);
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 3000) {
+            while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(93);
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 3000) {
+            while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(95);
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 3000) {
+            while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(96);
+            }
+            while (clock->now() <= 100) {
+                leftMotor->setPWM(0);
+                rightMotor->setPWM(0);
+                tail_control(98);
             }
 
             /*
@@ -608,6 +620,7 @@ void main_task(intptr_t unused)
             /* ジャイロセンサーリセット */
             gyroSensor->reset();
             balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */
+            hard_flag = 1;
         }
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
@@ -628,8 +641,8 @@ void main_task(intptr_t unused)
         volt = ev3_battery_voltage_mV();
 
         /* ガレージ処理 */
-        if (garage == 1 && course_number <= 11) {
-            if (distance_now - distance_tmp < 255) {
+        if (garage == 1 && hard_flag == 1) {
+            if (distance_now - distance_tmp < 230) {
                 syslog(LOG_NOTICE, "--- garage ---\r");
                 forward = 10;
             }
