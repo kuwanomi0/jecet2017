@@ -41,7 +41,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          320  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          310  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
@@ -115,9 +115,9 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
 
 /* Rコース */
 static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
-    { 0,     0,122,  0, 0.0500F, 0.0000F, 1.0000F }, //スタート
+    { 0,     0,122,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
     { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
-    { 2,  3700,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
+    { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
     { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
     { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
     { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
@@ -641,6 +641,7 @@ void main_task(intptr_t unused)
         volt = ev3_battery_voltage_mV();
 
         /* ガレージ処理 */
+        // if (garage == 1) { /* テスト用 */
         if (garage == 1 && hard_flag == 1) {
             if (distance_now - distance_tmp < 230) {
                 syslog(LOG_NOTICE, "--- garage ---\r");
@@ -706,8 +707,7 @@ void main_task(intptr_t unused)
         // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
         if (bt_cmd == 1 || gray == 1)
         {
-                syslog(LOG_NOTICE, "グレー検知だあああああああああああああああああ！！\r");
-                // syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, flag:%5d, RGB%3d\r", course_number, distance_now, gyro, gyro_flag, rgb_total);
+            syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, flag:%5d, RGB%3d\r", course_number, distance_now, gyro, gyro_flag, rgb_total);
             bt_cmd = 0;
         }
 
