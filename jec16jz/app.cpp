@@ -41,7 +41,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          320 /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          300  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
@@ -54,7 +54,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define TAIL_ANGLE_STAND_UP   96 /* 完全停止時の角度[度] */
 #define TAIL_ANGLE_ROKET      97 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
-#define TAIL_ANGLE_STOP       75 /* 停止処理時の角度[度] */
+#define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
 #define KP_TAIL             2.7F /* 尻尾用定数P */
 #define KI_TAIL            0.02F /* 尻尾用定数I */
 #define KD_TAIL            14.0F /* 尻尾用定数D */
@@ -123,8 +123,8 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
     { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
     { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-    { 9, 10550,106,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-    {10, 11900, 30,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+    {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
@@ -169,14 +169,17 @@ void main_task(intptr_t unused)
     int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
     int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
-    // int tail_i = 0; //TODO :4 おまけ コマンドでの終了する際のタイマー用変数
+    int tail_i = 0; //TODO :4 おまけだったはずなのにガレージで必須な処理に コマンドでの終了する際のタイマー用変数
     int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
     int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
-    int gyro_flag = 0;
-    int tail_flags = 0;
+    int8_t gyro_flag = 0;
+    int8_t tail_flags = 0;
     int kaiden = 1;
+    int8_t garage = 0;
+    int garage_cnt = 0;
+    int distance_tmp = 0;
     Course* mCourse = NULL;
 
     /* 各オブジェクトを生成・初期化する */
@@ -401,7 +404,7 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
-    int glay = 0;
+    int gray = 0;
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
@@ -423,7 +426,7 @@ void main_task(intptr_t unused)
         }
 
         /* 尻尾の制御 */
-        if (bt_cmd == 6) {  // TODO :4 おまけ コマンド終了停止用の角度変更を回避するための分岐
+        if (bt_cmd == 6) {  // TODO :4 おまけだったはずなのにガレージで必須な処理に コマンド終了停止用の角度変更を回避するための分岐
         }
         else if(roket++ < 25)                                              //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
             tail_control(TAIL_ANGLE_ROKET); /* ロケット走行用角度に制御 */  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
@@ -447,22 +450,24 @@ void main_task(intptr_t unused)
         /* 現在の走行距離を取得 */
         distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
 
-        if ( 100 >= rgb_level.r &&                             /* TODO 01: glay検出用 */
-            rgb_level.g <= 100 &&                             /* TODO 01: glay検出用 */
-            300 < (rgb_level.r + rgb_level.g + rgb_level.b)) {  /* TODO 01: glay検出用 */
+        if ( 100 >= rgb_level.r &&                             /* TODO 01: gray検出用 */
+            rgb_level.g <= 100 &&                             /* TODO 01: gray検出用 */
+            300 < (rgb_level.r + rgb_level.g + rgb_level.b)) {  /* TODO 01: gray検出用 */
 
-            glay++;                                           /* TODO 01: glay検出用 */
+            gray++;                                           /* TODO 01: gray検出用 */
 
         //    ev3_speaker_set_volume(VOLUME);
         //    ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
-         }                                                     /* TODO 01: glay検出用 */
-         else {                                                /* TODO 01: glay検出用 */
-             glay = 0;                                         /* TODO 01: glay検出用 */
-         }                                                     /* TODO 01: glay検出用 */
-         if (glay == 1) {
-                 turn = 0;
-                 ev3_led_set_color(LED_RED);
-         }
+        }                                                     /* TODO 01: gray検出用 */
+        else {                                                /* TODO 01: gray検出用 */
+            gray = 0;                                         /* TODO 01: gray検出用 */
+        }                                                     /* TODO 01: gray検出用 */
+        if (gray == 1) {
+                turn = 0;
+                garage = 1;
+                distance_tmp = distance_now;
+                ev3_led_set_color(LED_RED);
+        }
 
 
 
@@ -504,7 +509,7 @@ void main_task(intptr_t unused)
             /* 前進一回目のくぐり */
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 7000) {
+            while (clock->now() <= 7200) {
                 leftMotor->setPWM(4);
                 rightMotor->setPWM(4);
                 tail_control(67);
@@ -515,15 +520,15 @@ void main_task(intptr_t unused)
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(70);
+                tail_control(67);
             }
             /* バックしてくぐる */
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 10000) {
-                leftMotor->setPWM(-3);
-                rightMotor->setPWM(-3);
-                tail_control(66);
+            while (clock->now() <= 15000) {
+                leftMotor->setPWM(-2);
+                rightMotor->setPWM(-2);
+                tail_control(67);
             }
             /* 前進して2回目のくぐり */
             clock->reset();
@@ -540,35 +545,35 @@ void main_task(intptr_t unused)
             while (clock->now() <= 200) {
                 leftMotor->setPWM(-20);
                 rightMotor->setPWM(-20);
-                tail_control(70);
+                tail_control(73);
             }
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(75);
+                tail_control(78);
             }
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(80);
+                tail_control(85);
             }
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(86);
+                tail_control(89);
             }
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(91);
+                tail_control(92);
             }
             clock->reset();
             clock->sleep(1);
@@ -579,14 +584,14 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 4000) {
+            while (clock->now() <= 3000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(95);
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 5000) {
+            while (clock->now() <= 3000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(96);
@@ -607,7 +612,7 @@ void main_task(intptr_t unused)
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
-                forward = -30; //TODO 4: おまけコマンド停止処理用
+                forward = 0; //TODO 4: おまけコマンド停止処理用
             }
             else {
                 forward = forward_course * FORWARD_X; /* 前進命令 */
@@ -621,6 +626,26 @@ void main_task(intptr_t unused)
         motor_ang_r = rightMotor->getCount();
         gyro = gyroSensor->getAnglerVelocity();
         volt = ev3_battery_voltage_mV();
+
+        /* ガレージ処理 */
+        if (garage == 1 && course_number <= 11) {
+            if (distance_now - distance_tmp < 255) {
+                syslog(LOG_NOTICE, "--- garage ---\r");
+                forward = 10;
+            }
+            else if (garage_cnt <= 240/4) {
+                syslog(LOG_NOTICE, " S T O P\r");
+                forward = -2;
+                turn = 0;
+                garage_cnt++;
+            }
+            else {
+                syslog(LOG_NOTICE, " S T O P  S T O P  S T O P\r");
+                forward = -40;
+                turn = 0;
+                bt_cmd = 6;
+            }
+        }
 
         // TODO :KAIDAN
         if ((gyro >= 100 || gyro_flag >= 1) && roket >= 45) {
@@ -666,21 +691,22 @@ void main_task(intptr_t unused)
         /* ログを送信する処理 */
         // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
         // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
-        if (bt_cmd == 1)
+        if (bt_cmd == 1 || gray == 1)
         {
-                syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, flag:%5d, RGB%3d\r", course_number, distance_now, gyro, gyro_flag, rgb_total);
+                syslog(LOG_NOTICE, "グレー検知だあああああああああああああああああ！！\r");
+                // syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, flag:%5d, RGB%3d\r", course_number, distance_now, gyro, gyro_flag, rgb_total);
             bt_cmd = 0;
         }
 
-        // TODO :4 おまけ
+        // TODO :4 おまけだったはずなのにガレージで必須な処理に
         if (bt_cmd == 6)
         {
-            // if (tail_i++ < 400) {
-            //     tail_control(TAIL_ANGLE_STOP);
-            // }
-            // else {
+            if (tail_i++ < 500/4) {
+                tail_control(TAIL_ANGLE_STOP);
+            }
+            else {
                 break;
-            // }
+            }
         }
 
         if (bt_cmd == ' ') {
