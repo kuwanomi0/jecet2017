@@ -54,6 +54,9 @@ public:
     float getD() {
         return kd;
     }
+    void setForward(int forward) {
+        this->forward = forward;
+    }
 };
 
 #endif
