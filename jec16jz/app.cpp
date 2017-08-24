@@ -443,7 +443,7 @@ void main_task(intptr_t unused)
 
         /* 灰色検知 */
         if ( 100 >= rgb_level.r && rgb_level.g <= 100 &&
-         300 < (rgb_level.r + rgb_level.g + rgb_level.b) && hard_flag == 2) {
+         300 < (rgb_level.r + rgb_level.g + rgb_level.b) && hard_flag == 3) {
             gray = 1;
             ev3_speaker_set_volume(VOLUME);
             ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
@@ -467,9 +467,12 @@ void main_task(intptr_t unused)
             pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
             count++;
         }
+        if (distance_now >= 10000) {
+            hard_flag = 1;
+        }
 
 /*========================ゲートをくぐる=========================*/
-        if (sonar_alert() == 1) {/* 障害物検知 */
+        if (sonar_alert() == 1 && hard_flag >= 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_speaker_set_volume(VOLUME);
             ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
@@ -603,7 +606,7 @@ void main_task(intptr_t unused)
             /* ジャイロセンサーリセット */
             gyroSensor->reset();
             balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */
-            hard_flag = 2;
+            hard_flag = 3;
         }
         else {
             if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
@@ -650,7 +653,7 @@ void main_task(intptr_t unused)
         }
         // TODO :KAIDAN
         syslog(LOG_NOTICE, "KAIDAN : %d\r", stairs);
-        if (gyro_wait == 0 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45 && hard_flag == 0) {
+        if (gyro_wait == 0 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45 && hard_flag == 1) {
             gyro_flag++;
             if(gyro_flag <= 250/4) {
                 forward = 70;
@@ -783,7 +786,7 @@ void main_task(intptr_t unused)
                 }
                 else if (stairs == 2) {
                     stairs = 3;
-                    hard_flag = 1;
+                    hard_flag = 2;
                     tail_flags = 0;
                 }
             }
@@ -814,7 +817,7 @@ void main_task(intptr_t unused)
         }
         else if(7000/4 <= stairs) {
             mCourse[count].setForward(10);
-            hard_flag = 2;
+            hard_flag = 3;
             stairs = 0;
         }
 
