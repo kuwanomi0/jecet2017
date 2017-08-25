@@ -46,13 +46,14 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
+#define GOOL_DISTANCE      10000  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
 
 /* 尻尾に関するマクロ */
-#define TAIL_ANGLE_STAND_UP   96 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_ROKET      97 /* ロケットダッシュ時の角度[度] */
+#define TAIL_ANGLE_STAND_UP   97 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_ROKET      98 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
 #define KP_TAIL             2.7F /* 尻尾用定数P */
@@ -196,7 +197,7 @@ void main_task(intptr_t unused)
     ev3_lcd_draw_string("             M", 0, CALIB_FONT_HEIGHT*2);
 
     /* 尻尾モーターのリセット */
-    for(int i = 0; i < 500; i++){
+    for(int i = 0; i < 300; i++){
         tailMotor->setPWM(-3);
         clock->wait(1);
     }
@@ -435,6 +436,7 @@ void main_task(intptr_t unused)
         /* バックボタン, 転倒時停止処理 */
         if (ev3_button_is_pressed(BACK_BUTTON) || rgb_total <= RGB_NULL) {
             run_result();
+            syslog(LOG_NOTICE, "電圧  %d\r", volt);
             break;
         }
 
@@ -467,7 +469,7 @@ void main_task(intptr_t unused)
             pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
             count++;
         }
-        if (distance_now >= 10000) {
+        if (distance_now >= GOOL_DISTANCE && hard_flag == 0) {
             hard_flag = 1;
         }
 
@@ -651,9 +653,8 @@ void main_task(intptr_t unused)
         if (gyro_wait >= 3000/4) {
             gyro_wait = 0;
         }
-        // TODO :KAIDAN
-        syslog(LOG_NOTICE, "KAIDAN : %d\r", stairs);
-        if (gyro_wait == 0 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45 && hard_flag == 1) {
+        // TODO :階段の処理を決め打ちで行うのか、ライン検知による回転で行うのか考えておく
+        if (gyro_wait == 0 && hard_flag == 1 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45) {
             gyro_flag++;
             if(gyro_flag <= 250/4) {
                 forward = 70;
@@ -699,6 +700,15 @@ void main_task(intptr_t unused)
                     rightMotor->setPWM(0);
                     tail_control(80);
                 }
+                if (stairs == 2) {
+                    clock->reset();
+                    clock->sleep(1);
+                    while (clock->now() <= 250) {
+                        leftMotor->setPWM(20);
+                        rightMotor->setPWM(20);
+                        tail_control(80);
+                    }
+                }
                 clock->reset();
                 clock->sleep(1);
                 while (clock->now() <= 1000) {
@@ -709,18 +719,18 @@ void main_task(intptr_t unused)
                 if (stairs ==2) {
                     clock->reset();
                     clock->sleep(1);
-                    while (clock->now() <= 750) {
+                    while (clock->now() <= 850) {
                         leftMotor->setPWM(80);
                         rightMotor->setPWM(-80);
                         tail_control(80);
                     }
                 }
-                if (stairs == 1) {
+                if (stairs > 0) {
                     clock->reset();
                     clock->sleep(1);
                     while (clock->now() <= 1000) {
-                        leftMotor->setPWM(-10);
-                        rightMotor->setPWM(-10);
+                        leftMotor->setPWM(-4);
+                        rightMotor->setPWM(-4);
                         tail_control(80);
                     }
                     clock->reset();
@@ -730,6 +740,10 @@ void main_task(intptr_t unused)
                         colorSensor->getRawColor(rgb_level); /* RGB取得 */
                         pwmL = 5 + (rgb_level.r - STAIRS_COLOR) * 0.7;
                         pwmR = 5 + (STAIRS_COLOR - rgb_level.r) * 0.7;
+                        if (stairs == 2) {
+                            pwmR = 2 + (rgb_level.r - STAIRS_COLOR + 3) * 0.9;
+                            pwmL = 2 + (STAIRS_COLOR + 3 - rgb_level.r) * 0.9;
+                        }
                         // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
                         leftMotor->setPWM(pwmL);
                         rightMotor->setPWM(pwmR);
@@ -741,8 +755,12 @@ void main_task(intptr_t unused)
                 clock->reset();
                 clock->sleep(1);
                 while (clock->now() <= 500) {
-                    leftMotor->setPWM(0);
-                    rightMotor->setPWM(0);
+                    leftMotor->setPWM(-10);
+                    rightMotor->setPWM(-10);
+                    if (stairs == 2) {
+                        leftMotor->setPWM(-23);
+                        rightMotor->setPWM(-23);
+                    }
                     tail_control(85);
                 }
                 clock->reset();
@@ -768,26 +786,28 @@ void main_task(intptr_t unused)
                 }
                 clock->reset();
                 clock->sleep(1);
-                while (clock->now() <= 200) {
+                while (clock->now() <= 300) {
                     leftMotor->setPWM(0);
                     rightMotor->setPWM(0);
                     if (stairs == 1) {
-                        tail_control(99);
+                        tail_control(98);
                     }
                     else {
-                        tail_control(97);
+                        tail_control(98);
                     }
                 }
                 gyro = gyroSensor->getAnglerVelocity();
                 gyro_flag = 0;
                 if (stairs == 1) {
+                    syslog(LOG_NOTICE, "11111111111111111111111111111111111");
                     gyro_wait++;
                     stairs = 2;
                 }
                 else if (stairs == 2) {
-                    stairs = 3;
                     hard_flag = 2;
                     tail_flags = 0;
+                    syslog(LOG_NOTICE, "HARD : %d", hard_flag);
+                    stairs = 3;
                 }
             }
         }
@@ -795,19 +815,20 @@ void main_task(intptr_t unused)
             forward = 0;
             gyro_wait++;
         }
+
         if (stairs >= 3) {
             turn = -turn;
         }
 
         if(stairs == 3 ) {
-            forward = 0;
-            turn = -3;
+            forward = 2;
+            turn = 3;
             if (RGB_TARGET >= rgb_total) {
                 stairs = 4;
             }
         }
         else if (4 <= stairs && stairs < 5000/4) {
-            forward = 0;
+            forward = 1;
             stairs++;
         }
         else if (5000/4 <= stairs && stairs < 7000/4) {
@@ -834,7 +855,7 @@ void main_task(intptr_t unused)
 
 
         /* ログを送信する処理 */
-        // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
+        // syslog(LOG_NOTICE, "tail_flags:%3d  hard_flag %3d\r", tail_flags, hard_flag);
         // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
         if (bt_cmd == 1 || gray == 1)
         {
@@ -849,6 +870,7 @@ void main_task(intptr_t unused)
                 tail_control(TAIL_ANGLE_STOP);
             }
             else {
+                syslog(LOG_NOTICE, "電圧  %d\r", volt);
                 break;
             }
         }
