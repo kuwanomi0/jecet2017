@@ -436,7 +436,6 @@ void main_task(intptr_t unused)
         /* バックボタン, 転倒時停止処理 */
         if (ev3_button_is_pressed(BACK_BUTTON) || rgb_total <= RGB_NULL) {
             run_result();
-            syslog(LOG_NOTICE, "電圧  %d\r", volt);
             break;
         }
 
@@ -474,7 +473,7 @@ void main_task(intptr_t unused)
         }
 
 /*========================ゲートをくぐる=========================*/
-        if (sonar_alert() == 1 && hard_flag >= 1) {/* 障害物検知 */
+        if (sonar_alert() == 1 && hard_flag == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_speaker_set_volume(VOLUME);
             ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
@@ -502,7 +501,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 7200) {
                 leftMotor->setPWM(4);
                 rightMotor->setPWM(4);
-                tail_control(68);
+                tail_control(67);
             }
             /* 一度停止して尻尾の調整 */
             clock->reset();
@@ -510,7 +509,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(68);
+                tail_control(67);
             }
             /* バックしてくぐる */
             clock->reset();
@@ -518,7 +517,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 15000) {
                 leftMotor->setPWM(-2);
                 rightMotor->setPWM(-2);
-                tail_control(68);
+                tail_control(67);
             }
             /* 前進して2回目のくぐり */
             clock->reset();
@@ -531,7 +530,7 @@ void main_task(intptr_t unused)
                 // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
                 leftMotor->setPWM(pwmL);
                 rightMotor->setPWM(pwmR);
-                tail_control(68);
+                tail_control(67);
             }
 
             /* ここから起き上がり */
@@ -575,14 +574,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(93);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(95);
+                tail_control(94);
             }
             clock->reset();
             clock->sleep(1);
@@ -591,6 +583,8 @@ void main_task(intptr_t unused)
                 rightMotor->setPWM(0);
                 tail_control(96);
             }
+            clock->reset();
+            clock->sleep(1);
             while (clock->now() <= 100) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
@@ -758,8 +752,8 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(-10);
                     rightMotor->setPWM(-10);
                     if (stairs == 2) {
-                        leftMotor->setPWM(-23);
-                        rightMotor->setPWM(-23);
+                        leftMotor->setPWM(-20);
+                        rightMotor->setPWM(-20);
                     }
                     tail_control(85);
                 }
@@ -793,7 +787,7 @@ void main_task(intptr_t unused)
                         tail_control(98);
                     }
                     else {
-                        tail_control(98);
+                        tail_control(97);
                     }
                 }
                 gyro = gyroSensor->getAnglerVelocity();
@@ -831,12 +825,12 @@ void main_task(intptr_t unused)
             forward = 1;
             stairs++;
         }
-        else if (5000/4 <= stairs && stairs < 7000/4) {
+        else if (5000/4 <= stairs && stairs < 6500/4) {
             forward = 70;
             turn = 2;
             stairs++;
         }
-        else if(7000/4 <= stairs) {
+        else if(6500/4 <= stairs) {
             mCourse[count].setForward(10);
             hard_flag = 3;
             stairs = 0;
