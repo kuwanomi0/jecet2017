@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE      10000  /* 難所の処理を有効にする距離 */
+#define GOOL_DISTANCE     12000  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
@@ -78,9 +78,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
-static void carHorn();
-static void carHorn(double tone);
-static void carHorn(double tone, int sound_time);
 static void run_result(void);
 static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt);
 
@@ -380,12 +377,6 @@ void main_task(intptr_t unused)
             bt_cmd = 0;
         }
 
-        // クラクション
-        if (bt_cmd == ' ') {
-            carHorn();
-            bt_cmd = 0;
-        }
-
         clock->sleep(10); /* 10msecウェイト */
     }
 
@@ -527,7 +518,6 @@ void main_task(intptr_t unused)
                 colorSensor->getRawColor(rgb_level); /* RGB取得 */
                 pwmL = 5 + (rgb_level.r - LOOK_UP_COLOR) * 0.4;
                 pwmR = 5 + (LOOK_UP_COLOR - rgb_level.r) * 0.4;
-                // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
                 leftMotor->setPWM(pwmL);
                 rightMotor->setPWM(pwmR);
                 tail_control(67);
@@ -592,6 +582,7 @@ void main_task(intptr_t unused)
             }
 
             /*
+                TODO : バランス制御に戻る前にgyroで位置を取り直すことで取り戻せると思われる
                 ここから走行情報のリセット
                 これをしないと今の段階では倒立制御ができずすぐに倒れる
             */
@@ -630,13 +621,12 @@ void main_task(intptr_t unused)
                 forward = 10;
             }
             else if (garage_cnt <= 240/4) {
-                syslog(LOG_NOTICE, " S T O P\r");
                 forward = -2;
                 turn = 0;
                 garage_cnt++;
             }
             else {
-                syslog(LOG_NOTICE, " S T O P  S T O P  S T O P\r");
+                syslog(LOG_NOTICE, " S T O P   電圧 %d\r", volt);
                 forward = -40;
                 turn = 0;
                 bt_cmd = 6;
@@ -793,14 +783,12 @@ void main_task(intptr_t unused)
                 gyro = gyroSensor->getAnglerVelocity();
                 gyro_flag = 0;
                 if (stairs == 1) {
-                    syslog(LOG_NOTICE, "11111111111111111111111111111111111");
                     gyro_wait++;
                     stairs = 2;
                 }
                 else if (stairs == 2) {
                     hard_flag = 2;
                     tail_flags = 0;
-                    syslog(LOG_NOTICE, "HARD : %d", hard_flag);
                     stairs = 3;
                 }
             }
@@ -864,14 +852,8 @@ void main_task(intptr_t unused)
                 tail_control(TAIL_ANGLE_STOP);
             }
             else {
-                syslog(LOG_NOTICE, "電圧  %d\r", volt);
                 break;
             }
-        }
-
-        if (bt_cmd == ' ') {
-            carHorn();
-            bt_cmd = 0;
         }
 
         clock->sleep(4); /* 4msec周期起動 */
@@ -980,9 +962,6 @@ void bt_task(intptr_t unused)
         case '9':
             bt_cmd = 9;
             break;
-        case ' ':
-            bt_cmd = ' ';
-            break;
         case '[':   // 上
             bt_cmd = '[';
             break;
@@ -1010,7 +989,7 @@ void bt_task(intptr_t unused)
         default:
             break;
         }
-        if (!(bt_cmd == '[' || bt_cmd == ']' || bt_cmd == ' ')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
+        if (!(bt_cmd == '[' || bt_cmd == ']')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
             fputc(c, bt); /* エコーバック */
         }
         if (bt_cmd == 1 || bt_cmd == 2) {
@@ -1025,39 +1004,6 @@ void bt_task(intptr_t unused)
             lapTime_count++;
         }
     }
-}
-
-//*****************************************************************************
-// 関数名 : carHorn
-// 引数 : unused
-// 返り値 : なし
-// 概要 : クラクションを鳴らす
-//*****************************************************************************
-static void carHorn() {
-    carHorn(TONE
-    );
-}
-
-//*****************************************************************************
-// 関数名 : carHorn
-// 引数 : double tone
-// 返り値 : なし
-// 概要 : クラクションを鳴らす
-//*****************************************************************************
-static void carHorn(double tone) {
-    carHorn(tone, MY_SOUND_MANUAL_STOP);
-}
-
-//*****************************************************************************
-// 関数名 : carHorn
-// 引数 : double tone, int sound_time
-// 返り値 : なし
-// 概要 : クラクションを鳴らす
-//*****************************************************************************
-static void carHorn(double tone, int sound_time) {
-    ev3_speaker_set_volume(VOLUME);
-    //ev3_speaker_play_file(&memfile, MY_SOUND_MANUAL_STOP);
-    ev3_speaker_play_tone(tone, sound_time);
 }
 
 //*****************************************************************************
