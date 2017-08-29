@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define PIDX                  1  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE     12000  /* 難所の処理を有効にする距離 */
+#define GOOL_DISTANCE     11500  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
@@ -111,9 +111,9 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
     { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
     { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-    {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-    {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
-    {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+    {11, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+    {12, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
+    {13, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
@@ -131,11 +131,6 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
     { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
     {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
-    {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-};
-/* 階段用コースファイル */
-static Course gCourseKaidan[] {  // TODO 2: コース関連
-    { 1,     0, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段前
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
@@ -157,7 +152,6 @@ void main_task(intptr_t unused)
 {
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
-    // int8_t    pwm_L, pwm_R; /* 左右モータPWM出力 */
     rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
     int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
@@ -230,12 +224,6 @@ void main_task(intptr_t unused)
             mCourse = gCourseR;
             break; /* リモートスタート */
         }
-        /* 階段コース */
-        if (bt_cmd == 3)
-        {
-            mCourse = gCourseKaidan;
-            break; /* リモートスタート */
-        }
         /* デフォルコース */
         if (touchSensor->isPressed())
         {
@@ -294,7 +282,10 @@ void main_task(intptr_t unused)
             angle += 0.1;
             bt_cmd = 0; // コマンドリセット
         }
-        syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
+
+        if (bt_cmd == '@') {
+            syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
+        }
 
         // 回転
         if (bt_cmd == 9 && rotation_flag == 0) {
@@ -596,7 +587,7 @@ void main_task(intptr_t unused)
             hard_flag = 3;
         }
         else {
-            if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
+            if (bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
                 forward = 0; //TODO 4: おまけコマンド停止処理用
             }
@@ -614,7 +605,6 @@ void main_task(intptr_t unused)
         volt = ev3_battery_voltage_mV();
 
         /* ガレージ処理 */
-        // if (garage == 1) { /* テスト用 */
         if (garage == 1) {
             if (distance_now - distance_tmp < 230) {
                 syslog(LOG_NOTICE, "--- garage ---\r");
@@ -826,19 +816,11 @@ void main_task(intptr_t unused)
 
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
-        // balancer.setCommand(forward, turn);   // <1>
-        // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-        // pwm_L = balancer.getPwmRight();       // <3>
-        // pwm_R = balancer.getPwmLeft();        // <3>
-        //
-        // leftMotor->setPWM(pwm_L);
-        // rightMotor->setPWM(pwm_R);
         balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
 
 
         /* ログを送信する処理 */
-        // syslog(LOG_NOTICE, "tail_flags:%3d  hard_flag %3d\r", tail_flags, hard_flag);
-        // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
+
         if (bt_cmd == 1 || gray == 1)
         {
             syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, flag:%5d, RGB%3d\r", course_number, distance_now, gyro, gyro_flag, rgb_total);
@@ -942,6 +924,9 @@ void bt_task(intptr_t unused)
         uint8_t c = fgetc(bt); /* 受信 */
         switch(c)
         {
+        case '0':
+            bt_cmd = 0;
+            break;
         case '1':
         case 'l':
             bt_cmd = 1;
@@ -955,9 +940,6 @@ void bt_task(intptr_t unused)
             break;
         case '6':
             bt_cmd = 6;
-            break;
-        case '7':
-            bt_cmd = 7;
             break;
         case '9':
             bt_cmd = 9;
@@ -982,6 +964,9 @@ void bt_task(intptr_t unused)
             break;
         case 'a':
             bt_cmd = 'a';
+            break;
+        case '@':
+            bt_cmd = '@';
             break;
         case '\r':
             bt_cmd = '\r';
