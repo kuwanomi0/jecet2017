@@ -85,6 +85,7 @@ static void run_result(void);
 static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt);
 static void setCourse(int device_num, Course* gCourseR, Course* gCourseL);
 static void BTconState();
+static int RoboIdentification();
 
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -212,45 +213,47 @@ void main_task(intptr_t unused)
     /* Bluetooth通信タスクの起動 */
     act_tsk(BT_TASK);
 
-    /* 走行コース配列変更 */
-    FILE *fp; // FILE型構造体
-	// char fname[] = "ev3rt\etc\rc.conf.ini";
-    char fname[] = "device.txt";
-    char str[256];
-    int device_num;
-
-    // fp = fopen(fname, "w");
-    // fputs("ET49-2", fp);
-    // fclose(fp);
-
-	fp = fopen(fname, "r");
-    //fclose(fp);
-    // return;  // 止める用
-    if (fp != NULL) {
-        ev3_lcd_draw_string("OPEN  ", 0, CALIB_FONT_HEIGHT*4);
-        // fgets(str, 256, fp);
-        // ev3_lcd_draw_string(str, 0, CALIB_FONT_HEIGHT*4);
-        while(fgets(str, 256, fp) != NULL) {
-            ev3_lcd_draw_string(str, 0, CALIB_FONT_HEIGHT*4);
-            if (!strcmp(str, "ET49")) { // 0 なら true
-                device_num = 1;
-                ev3_lcd_draw_string("ET49  ", 0, CALIB_FONT_HEIGHT*4);
-                break;
-            }
-            else if (!strcmp(str, "ET49-2")) {
-                device_num = 2;
-                ev3_lcd_draw_string("ET49-2", 0, CALIB_FONT_HEIGHT*4);
-                break;
-            }
-            else {
-                ev3_lcd_draw_string("??????", 0, CALIB_FONT_HEIGHT*4);
-                break;
-            }
-        }
-    }
-    else {
-        ev3_lcd_draw_string("NoOPEN", 0, CALIB_FONT_HEIGHT*4);
-    }
+    int device_num = RoboIdentification();
+    // /* 走行コース配列変更 */
+    // /* 筐体識別用 */
+    // FILE *fp; // FILE型構造体
+	// // char fname[] = "ev3rt\etc\rc.conf.ini";
+    // char fname[] = "device.txt";
+    // char str[256];
+    // int device_num;
+    //
+    // // fp = fopen(fname, "w");
+    // // fputs("ET49-2", fp);
+    // // fclose(fp);
+    //
+	// fp = fopen(fname, "r");
+    // //fclose(fp);
+    // // return;  // 止める用
+    // if (fp != NULL) {
+    //     ev3_lcd_draw_string("OPEN  ", 0, CALIB_FONT_HEIGHT*4);
+    //     // fgets(str, 256, fp);
+    //     // ev3_lcd_draw_string(str, 0, CALIB_FONT_HEIGHT*4);
+    //     while(fgets(str, 256, fp) != NULL) {
+    //         ev3_lcd_draw_string(str, 0, CALIB_FONT_HEIGHT*4);
+    //         if (!strcmp(str, "ET49")) { // 0 なら true
+    //             device_num = 1;
+    //             ev3_lcd_draw_string("ET49  ", 0, CALIB_FONT_HEIGHT*4);
+    //             break;
+    //         }
+    //         else if (!strcmp(str, "ET49-2")) {
+    //             device_num = 2;
+    //             ev3_lcd_draw_string("ET49-2", 0, CALIB_FONT_HEIGHT*4);
+    //             break;
+    //         }
+    //         else {
+    //             ev3_lcd_draw_string("??????", 0, CALIB_FONT_HEIGHT*4);
+    //             break;
+    //         }
+    //     }
+    // }
+    // else {
+    //     ev3_lcd_draw_string("NoOPEN", 0, CALIB_FONT_HEIGHT*4);
+    // }
 
     setCourse(2, gCourseR, gCourseL);
     if (1 <= device_num && device_num <= 2) {
@@ -349,8 +352,8 @@ void main_task(intptr_t unused)
         // 回転
         if (bt_cmd == 9 && rotation_flag == 0) {
             syslog(LOG_NOTICE, "DEBUG, 回転\r");
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(-18);
+            leftMotor->setPWM(180);
+            rightMotor->setPWM(-180);
             bt_cmd = 0;
             rotation_flag = 1;
         }
@@ -1107,7 +1110,7 @@ static void run_result() {
         syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
         for (int i = 0; i < lapTime_count; i++) {
             syslog(LOG_NOTICE, "TIME(%3d) : %d.%03d s , 距離 : %d.%03d m",i + 1 , time[0][i] / 1000, time[0][i] % 1000, time[1][i] / 1000, time[1][i] % 1000);
-            syslog(LOG_NOTICE, "(%3d m/s)\r",  (time[1][i] / 1000) / (time[1][i] / 1000));
+            syslog(LOG_NOTICE, "(%2d cm/s)\r",  (time[1][i] / 10) / (time[0][i] / 1000));
         }
         syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
     }
@@ -1136,96 +1139,96 @@ static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang
 // 返り値 : なし
 // 概要 : 走行コース配列セット（筐体ごとに変更）
 //*****************************************************************************
-// static void setCourse(int device_num, Course* gCourseR, Course* gCourseL) {
-//     /* Lコース（No.1） */
-//     static Course CourseL1[] {
-//         { 0,     0,  1,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
-//         { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
-//         { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
-//         { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
-//         { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
-//         { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
-//         { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
-//         { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
-//         { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
-//         { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-//         {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-//         {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-//         {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
-//         {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
-//         {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-//     };
-//
-//     /* Rコース（No.1） */
-//     static Course CourseR1[]  {
-//         { 0,     0,  1,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
-//         { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
-//         { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
-//         { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
-//         { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
-//         { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
-//         { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
-//         { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-//         { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-//         { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-//         {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-//         {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
-//         {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-//     };
-//
-//     /* Lコース（No.2） */
-//     static Course CourseL2[] {
-//         { 0,     0,  1,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
-//         { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
-//         { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
-//         { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
-//         { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
-//         { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
-//         { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
-//         { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
-//         { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
-//         { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-//         {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-//         {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-//         {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
-//         {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
-//         {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-//     };
-//
-//     /* Rコース（No.2） */
-//     static Course CourseR2[]  {
-//         { 0,     0,  1,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
-//         { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
-//         { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
-//         { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
-//         { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
-//         { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
-//         { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
-//         { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-//         { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-//         { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-//         {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-//         {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
-//         {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-//     };
-//
-//     int size = sizeof gCourseR / sizeof gCourseR[0];
-//
-//     switch (device_num) {
-//         case 1:
-//             for (int i = 0; i < size; i++) {
-//                 gCourseR[i] = CourseR1[i];
-//                 gCourseL[i] = CourseL1[i];
-//             }
-//             break;
-//         case 2:
-//             for (int i = 0; i < size; i++) {
-//                 gCourseR[i] = CourseR2[i];
-//                 gCourseL[i] = CourseL2[i];
-//             }
-//             break;
-//     }
-// }
+static void setCourse(int device_num, Course* gCourseR, Course* gCourseL) {
+    /* Lコース（No.1） */
+    static Course CourseL1[] {
+        { 0,     0,  1,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+        { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
+        { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
+        { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
+        { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
+        { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
+        { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
+        { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
+        { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
+        { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
+        {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    /* Rコース（No.1） */
+    static Course CourseR1[]  {
+        { 0,     0,  1,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
+        { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
+        { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
+        { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
+        { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
+        { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
+        { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
+        { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+        {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    /* Lコース（No.2） */
+    static Course CourseL2[] {
+        { 0,     0,  1,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+        { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
+        { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
+        { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
+        { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
+        { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
+        { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
+        { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
+        { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
+        { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
+        {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    /* Rコース（No.2） */
+    static Course CourseR2[]  {
+        { 0,     0,  1,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
+        { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
+        { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
+        { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
+        { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
+        { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
+        { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
+        { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+        {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    int size = sizeof gCourseR / sizeof gCourseR[0];
+
+    switch (device_num) {
+        case 1:
+            for (int i = 0; i < size; i++) {
+                gCourseR[i] = CourseR1[i];
+                gCourseL[i] = CourseL1[i];
+            }
+            break;
+        case 2:
+            for (int i = 0; i < size; i++) {
+                gCourseR[i] = CourseR2[i];
+                gCourseL[i] = CourseL2[i];
+            }
+            break;
+    }
+}
 
 //*****************************************************************************
 // 関数名 : BTconState
@@ -1240,4 +1243,47 @@ static void BTconState() {
     else {
         ev3_lcd_draw_string("BT connection : false", 0, CALIB_FONT_HEIGHT*3);
     }
+}
+
+
+//*****************************************************************************
+// 関数名 : RoboIdentification
+// 引数 : なし
+// 返り値 : device_num（-1 : 不明、0以上 : ロボットの番号）
+// 概要 : SDカード内の device.txt ファイルをもとにロボットを識別
+//*****************************************************************************
+static int RoboIdentification() {
+    FILE *fp; // FILE型構造体
+	// char fname[] = "ev3rt\etc\rc.conf.ini";
+    char fname[] = "device.txt";
+    char str[256];
+    int device_num;
+    char deviceList[][10] = {"ET49", "ET49-2"};
+    int deviceListSize = sizeof deviceList / sizeof deviceList[0];
+
+    // fp = fopen(fname, "w");
+    // fputs("ET49-2", fp);
+    // fclose(fp);
+
+	fp = fopen(fname, "r");
+    if (fp != NULL) {
+        ev3_lcd_draw_string("OPEN  ", 0, CALIB_FONT_HEIGHT*4);
+        while (fgets(str, 256, fp) != NULL) {
+            ev3_lcd_draw_string(str, 0, CALIB_FONT_HEIGHT*4);
+            int i = 0;
+            while (!strcmp(str, deviceList[i]) || i < deviceListSize) {
+                device_num = i;
+                i++;
+            }
+            if (strcmp(str, deviceList[i])) {
+                ev3_lcd_draw_string(??????, 0, CALIB_FONT_HEIGHT*4);
+                device_num = -1;
+            }
+        }
+    }
+    else {
+        ev3_lcd_draw_string("NoOPEN", 0, CALIB_FONT_HEIGHT*4);
+    }
+
+    return device_num;
 }
