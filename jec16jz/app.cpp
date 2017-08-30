@@ -21,6 +21,7 @@
 #include "PID.h"
 #include "Distance.h"
 #include "Course.h"
+#include <string.h>
 
 using namespace ev3api;
 
@@ -80,6 +81,9 @@ static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
 static void run_result(void);
 static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt);
+static void setCourse(int device_num, Course* gCourseR, Course* gCourseL);
+static void BTconState();
+static int RoboIdentification();
 
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -199,6 +203,13 @@ void main_task(intptr_t unused)
 
     /* Bluetooth通信タスクの起動 */
     act_tsk(BT_TASK);
+
+    int device_num = RoboIdentification();
+
+    setCourse(2, gCourseR, gCourseL);
+    if (1 <= device_num && device_num <= 2) {
+        setCourse(device_num, gCourseR, gCourseL);
+    }
 
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
@@ -369,6 +380,8 @@ void main_task(intptr_t unused)
             bt_cmd = 0;
         }
 
+        BTconState();
+
         clock->sleep(10); /* 10msecウェイト */
     }
 
@@ -451,12 +464,12 @@ void main_task(intptr_t unused)
             pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
             count++;
         }
-        if (distance_now >= GOOL_DISTANCE && hard_flag == 0) {
+        if (distance_now >= 10000) {
             hard_flag = 1;
         }
 
 /*========================ゲートをくぐる=========================*/
-        if (sonar_alert() == 1 && hard_flag == 1) {/* 障害物検知 */
+        if (sonar_alert() == 1 && hard_flag >= 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_speaker_set_volume(VOLUME);
             ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
@@ -484,7 +497,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 7200) {
                 leftMotor->setPWM(4);
                 rightMotor->setPWM(4);
-                tail_control(67);
+                tail_control(68);
             }
             /* 一度停止して尻尾の調整 */
             clock->reset();
@@ -492,7 +505,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(67);
+                tail_control(68);
             }
             /* バックしてくぐる */
             clock->reset();
@@ -500,7 +513,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 15000) {
                 leftMotor->setPWM(-2);
                 rightMotor->setPWM(-2);
-                tail_control(67);
+                tail_control(68);
             }
             /* 前進して2回目のくぐり */
             clock->reset();
@@ -510,9 +523,10 @@ void main_task(intptr_t unused)
                 colorSensor->getRawColor(rgb_level); /* RGB取得 */
                 pwmL = 5 + (rgb_level.r - LOOK_UP_COLOR) * 0.4;
                 pwmR = 5 + (LOOK_UP_COLOR - rgb_level.r) * 0.4;
+                // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
                 leftMotor->setPWM(pwmL);
                 rightMotor->setPWM(pwmR);
-                tail_control(67);
+                tail_control(68);
             }
 
             /* ここから起き上がり */
@@ -556,7 +570,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(94);
+                tail_control(93);
             }
             clock->reset();
             clock->sleep(1);
@@ -567,6 +581,11 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
+            while (clock->now() <= 1000) {
+                leftMotor->setPWM(0);
+                rightMotor->setPWM(0);
+                tail_control(96);
+            }
             while (clock->now() <= 100) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
@@ -574,7 +593,6 @@ void main_task(intptr_t unused)
             }
 
             /*
-                TODO : バランス制御に戻る前にgyroで位置を取り直すことで取り戻せると思われる
                 ここから走行情報のリセット
                 これをしないと今の段階では倒立制御ができずすぐに倒れる
             */
@@ -588,7 +606,7 @@ void main_task(intptr_t unused)
             hard_flag = 3;
         }
         else {
-            if (bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
+            if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
                 forward = 0; //TODO 4: おまけコマンド停止処理用
             }
@@ -606,18 +624,20 @@ void main_task(intptr_t unused)
         volt = ev3_battery_voltage_mV();
 
         /* ガレージ処理 */
+        // if (garage == 1) { /* テスト用 */
         if (garage == 1) {
             if (distance_now - distance_tmp < 215) {
                 syslog(LOG_NOTICE, "--- garage ---\r");
                 forward = 10;
             }
             else if (garage_cnt <= 240/4) {
+                syslog(LOG_NOTICE, " S T O P\r");
                 forward = -2;
                 turn = 0;
                 garage_cnt++;
             }
             else {
-                syslog(LOG_NOTICE, " S T O P   電圧 %d\r", volt);
+                syslog(LOG_NOTICE, " S T O P  S T O P  S T O P\r");
                 forward = -40;
                 turn = 0;
                 bt_cmd = 6;
@@ -628,8 +648,9 @@ void main_task(intptr_t unused)
         if (gyro_wait >= 3000/4) {
             gyro_wait = 0;
         }
-        // TODO :階段の処理を決め打ちで行うのか、ライン検知による回転で行うのか考えておく
-        if (gyro_wait == 0 && hard_flag == 1 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45) {
+        // TODO :KAIDAN
+        syslog(LOG_NOTICE, "KAIDAN : %d\r", stairs);
+        if (gyro_wait == 0 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45 && hard_flag == 1) {
             gyro_flag++;
             if(gyro_flag <= 300/4) {
                 forward = 90;
@@ -696,18 +717,18 @@ void main_task(intptr_t unused)
                 if (stairs ==2) {
                     clock->reset();
                     clock->sleep(1);
-                    while (clock->now() <= 850) {
+                    while (clock->now() <= 750) {
                         leftMotor->setPWM(80);
                         rightMotor->setPWM(-80);
                         tail_control(80);
                     }
                 }
-                if (stairs > 0) {
+                if (stairs == 1) {
                     clock->reset();
                     clock->sleep(1);
                     while (clock->now() <= 1000) {
-                        leftMotor->setPWM(-4);
-                        rightMotor->setPWM(-4);
+                        leftMotor->setPWM(-10);
+                        rightMotor->setPWM(-10);
                         tail_control(80);
                     }
                     clock->reset();
@@ -717,10 +738,6 @@ void main_task(intptr_t unused)
                         colorSensor->getRawColor(rgb_level); /* RGB取得 */
                         pwmL = 5 + (rgb_level.r - STAIRS_COLOR) * 0.7;
                         pwmR = 5 + (STAIRS_COLOR - rgb_level.r) * 0.7;
-                        if (stairs == 2) {
-                            pwmR = 2 + (rgb_level.r - STAIRS_COLOR + 3) * 0.9;
-                            pwmL = 2 + (STAIRS_COLOR + 3 - rgb_level.r) * 0.9;
-                        }
                         // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
                         leftMotor->setPWM(pwmL);
                         rightMotor->setPWM(pwmR);
@@ -787,9 +804,9 @@ void main_task(intptr_t unused)
                     stairs = 2;
                 }
                 else if (stairs == 2) {
+                    stairs = 3;
                     hard_flag = 2;
                     tail_flags = 0;
-                    stairs = 3;
                 }
             }
         }
@@ -797,28 +814,27 @@ void main_task(intptr_t unused)
             forward = 0;
             gyro_wait++;
         }
-
         if (stairs >= 3) {
             turn = -turn;
         }
 
         if(stairs == 3 ) {
-            forward = 2;
-            turn = 3;
+            forward = 0;
+            turn = -3;
             if (RGB_TARGET >= rgb_total) {
                 stairs = 4;
             }
         }
         else if (4 <= stairs && stairs < 5000/4) {
-            forward = 1;
+            forward = 0;
             stairs++;
         }
-        else if (5000/4 <= stairs && stairs < 6500/4) {
+        else if (5000/4 <= stairs && stairs < 7000/4) {
             forward = 70;
             turn = 2;
             stairs++;
         }
-        else if(6500/4 <= stairs) {
+        else if(7000/4 <= stairs) {
             mCourse[count].setForward(10);
             hard_flag = 3;
             stairs = 0;
@@ -826,11 +842,19 @@ void main_task(intptr_t unused)
 
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
+        // balancer.setCommand(forward, turn);   // <1>
+        // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
+        // pwm_L = balancer.getPwmRight();       // <3>
+        // pwm_R = balancer.getPwmLeft();        // <3>
+        //
+        // leftMotor->setPWM(pwm_L);
+        // rightMotor->setPWM(pwm_R);
         balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
 
 
         /* ログを送信する処理 */
-
+        // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
+        // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
         if (bt_cmd == 1 || gray == 1)
         {
             syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, V:%5d, RGB%3d\r", course_number, distance_now, gyro, volt, rgb_total);
@@ -847,6 +871,8 @@ void main_task(intptr_t unused)
                 break;
             }
         }
+
+        BTconState();
 
         clock->sleep(4); /* 4msec周期起動 */
     }
@@ -934,9 +960,6 @@ void bt_task(intptr_t unused)
         uint8_t c = fgetc(bt); /* 受信 */
         switch(c)
         {
-        case '0':
-            bt_cmd = 0;
-            break;
         case '1':
         case 'l':
             bt_cmd = 1;
@@ -1012,7 +1035,7 @@ static void run_result() {
         syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
         for (int i = 0; i < lapTime_count; i++) {
             syslog(LOG_NOTICE, "TIME(%3d) : %d.%03d s , 距離 : %d.%03d m",i + 1 , time[0][i] / 1000, time[0][i] % 1000, time[1][i] / 1000, time[1][i] % 1000);
-            syslog(LOG_NOTICE, "(%3d m/s)\r",  (time[1][i] / 1000) / (time[1][i] / 1000));
+            syslog(LOG_NOTICE, "(%2d cm/s)\r",  (time[1][i] / 10) / (time[0][i] / 1000));
         }
         syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
     }
@@ -1033,4 +1056,155 @@ static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang
 
     leftMotor->setPWM(pwm_L);
     rightMotor->setPWM(pwm_R);
+}
+
+//*****************************************************************************
+// 関数名 : setCourse
+// 引数 : device_num, gCourseR, gCourseL
+// 返り値 : なし
+// 概要 : 走行コース配列セット（筐体ごとに変更）
+//*****************************************************************************
+static void setCourse(int device_num, Course* gCourseR, Course* gCourseL) {
+    /* Lコース（No.1） */
+    static Course CourseL1[] {
+        { 0,     0,  1,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+        { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
+        { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
+        { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
+        { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
+        { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
+        { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
+        { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
+        { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
+        { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
+        {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    /* Rコース（No.1） */
+    static Course CourseR1[]  {
+        { 0,     0,  1,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
+        { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
+        { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
+        { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
+        { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
+        { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
+        { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
+        { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+        {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    /* Lコース（No.2） */
+    static Course CourseL2[] {
+        { 0,     0,  1,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+        { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
+        { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
+        { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
+        { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
+        { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
+        { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
+        { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
+        { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
+        { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {10, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+        {11, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
+        {12, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    /* Rコース（No.2） */
+    static Course CourseR2[]  {
+        { 0,     0,  1,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
+        { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
+        { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
+        { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
+        { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
+        { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
+        { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
+        { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+        { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+        {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+        {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+        {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
+    };
+
+    int size = sizeof gCourseR / sizeof gCourseR[0];
+
+    switch (device_num) {
+        case 1:
+            for (int i = 0; i < size; i++) {
+                gCourseR[i] = CourseR1[i];
+                gCourseL[i] = CourseL1[i];
+            }
+            break;
+        case 2:
+            for (int i = 0; i < size; i++) {
+                gCourseR[i] = CourseR2[i];
+                gCourseL[i] = CourseL2[i];
+            }
+            break;
+    }
+}
+
+//*****************************************************************************
+// 関数名 : BTconState
+// 引数 : なし
+// 返り値 : なし
+// 概要 : Bluetooth接続状態表示
+//*****************************************************************************
+static void BTconState() {
+    if (ev3_bluetooth_is_connected()) {
+        ev3_lcd_draw_string("BT connection : true ", 0, CALIB_FONT_HEIGHT*3);
+    }
+    else {
+        ev3_lcd_draw_string("BT connection : false", 0, CALIB_FONT_HEIGHT*3);
+    }
+}
+
+
+//*****************************************************************************
+// 関数名 : RoboIdentification
+// 引数 : なし
+// 返り値 : device_num（-1 : 不明、0以上 : ロボットの番号）
+// 概要 : SDカード内の device.txt ファイルをもとにロボットを識別
+//*****************************************************************************
+static int RoboIdentification() {
+    FILE *fp; // FILE型構造体
+	// char fname[] = "ev3rt\etc\rc.conf.ini";
+    char fname[] = "device.txt";
+    char str[256];
+    int device_num;
+    char deviceList[][10] = {"ET49", "ET49-2"};
+    int deviceListSize = sizeof deviceList / sizeof deviceList[0];
+
+	fp = fopen(fname, "r");
+    if (fp != NULL) {
+        ev3_lcd_draw_string("OPEN  ", 0, CALIB_FONT_HEIGHT*4);
+        while (fgets(str, 256, fp) != NULL) {
+            ev3_lcd_draw_string(str, 0, CALIB_FONT_HEIGHT*4);
+            int i = 0;
+            while (!strcmp(str, deviceList[i]) || i < deviceListSize) {
+                device_num = i;
+                i++;
+            }
+            if (strcmp(str, deviceList[i])) {
+                ev3_lcd_draw_string("??????", 0, CALIB_FONT_HEIGHT*4);
+                device_num = -1;
+            }
+        }
+    }
+    else {
+        ev3_lcd_draw_string("NoOPEN", 0, CALIB_FONT_HEIGHT*4);
+    }
+
+    return device_num;
 }
