@@ -38,22 +38,22 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
-#define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
+#define GYRO_OFFSET          -1  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          310  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
-#define PIDX                  1  /* PID倍率 */
+#define PIDX               1.00  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE     11500  /* 難所の処理を有効にする距離 */
+#define GOOL_DISTANCE     11800  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
 
 /* 尻尾に関するマクロ */
 #define TAIL_ANGLE_STAND_UP   97 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_ROKET      98 /* ロケットダッシュ時の角度[度] */
+#define TAIL_ANGLE_ROKET      99 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
 #define KP_TAIL             2.7F /* 尻尾用定数P */
@@ -119,24 +119,23 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
 
 /* Rコース */
 static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
-    { 0,     0,122,  0, 0.1000F, 0.0000F, 1.0000F }, //スタート
-    { 1,  2200,106,  0, 0.1200F, 0.0002F, 1.4900F }, //大きく右
-    { 2,  4200,106,  0, 0.1000F, 0.0001F, 1.5100F }, //大きく右
-    { 3,  5400,108,  0, 0.1200F, 0.0001F, 1.3000F }, //左やや直進
-    { 4,  6350,105,  0, 0.1260F, 0.0002F, 1.4500F }, //強く左
-    { 5,  7150,106,  0, 0.1100F, 0.0002F, 1.5000F }, //緩やかに大きく右
-    { 6,  8750,122,  0, 0.0500F, 0.0000F, 1.0000F }, //直GOOLまで
-    { 7, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-    { 8, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-    { 9, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-    {10, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {11, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+    { 0,     0,122,  0, 0.1400F, 0.0000F, 1.7000F }, //スタート
+    { 1,  2240,113,  0, 0.1600F, 0.0002F, 1.6900F }, //大きく右
+    { 2,  5400,113,  0, 0.1500F, 0.0001F, 1.8000F }, //左やや直進
+    { 3,  6350,110,  0, 0.1660F, 0.0002F, 1.4500F }, //強く左
+    { 4,  7150,110,  0, 0.1600F, 0.0002F, 1.6000F }, //緩やかに大きく右
+    { 5,  8750,122,  0, 0.1500F, 0.0000F, 1.5000F }, //直GOOLまで
+    { 6, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+    { 7, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
+    { 8, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+    { 9, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {10, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
 /* デフォルト */
 static Course gCourse[] {
-    { 0,     0, 20,  0, 0.1000F, 0.0001F, 1.0000F }, //スタート
+    { 0,     0, 30,  0, 0.1900F, 0.0001F, 1.4000F }, //スタート
     { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
 };
 
@@ -225,7 +224,7 @@ void main_task(intptr_t unused)
             break; /* リモートスタート */
         }
         /* デフォルコース */
-        if (touchSensor->isPressed())
+        if (touchSensor->isPressed() || bt_cmd == 3)
         {
             mCourse = gCourse;
             break; /* タッチセンサが押された */
@@ -277,10 +276,12 @@ void main_task(intptr_t unused)
         if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == ']') {
             angle -= 0.1;
             bt_cmd = 0; // コマンドリセット
+            syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
         }
         if (ev3_button_is_pressed(UP_BUTTON) || bt_cmd == '[') {
             angle += 0.1;
             bt_cmd = 0; // コマンドリセット
+            syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
         }
 
         if (bt_cmd == '@') {
@@ -425,7 +426,7 @@ void main_task(intptr_t unused)
         distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
 
         /* 灰色検知 */
-        if ( 100 >= rgb_level.r && rgb_level.g <= 100 &&
+        if ( 110 >= rgb_level.r && rgb_level.g <= 110 &&
          300 < (rgb_level.r + rgb_level.g + rgb_level.b) && hard_flag == 3) {
             gray = 1;
             ev3_speaker_set_volume(VOLUME);
@@ -562,14 +563,14 @@ void main_task(intptr_t unused)
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(96);
+                tail_control(95);
             }
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 100) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(97);
+                tail_control(96);
             }
 
             /*
@@ -606,7 +607,7 @@ void main_task(intptr_t unused)
 
         /* ガレージ処理 */
         if (garage == 1) {
-            if (distance_now - distance_tmp < 230) {
+            if (distance_now - distance_tmp < 215) {
                 syslog(LOG_NOTICE, "--- garage ---\r");
                 forward = 10;
             }
@@ -630,8 +631,8 @@ void main_task(intptr_t unused)
         // TODO :階段の処理を決め打ちで行うのか、ライン検知による回転で行うのか考えておく
         if (gyro_wait == 0 && hard_flag == 1 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45) {
             gyro_flag++;
-            if(gyro_flag <= 250/4) {
-                forward = 70;
+            if(gyro_flag <= 300/4) {
+                forward = 90;
                 if (stairs == 2) {
                     forward = 100;
                     turn = 0;
@@ -674,14 +675,16 @@ void main_task(intptr_t unused)
                     rightMotor->setPWM(0);
                     tail_control(80);
                 }
-                if (stairs == 2) {
-                    clock->reset();
-                    clock->sleep(1);
-                    while (clock->now() <= 250) {
-                        leftMotor->setPWM(20);
-                        rightMotor->setPWM(20);
-                        tail_control(80);
+                clock->reset();
+                clock->sleep(1);
+                while (clock->now() <= 250) {
+                    leftMotor->setPWM(-15);
+                    rightMotor->setPWM(-15);
+                    if (stairs == 2) {
+                        leftMotor->setPWM(10);
+                        rightMotor->setPWM(10);
                     }
+                    tail_control(80);
                 }
                 clock->reset();
                 clock->sleep(1);
@@ -728,12 +731,19 @@ void main_task(intptr_t unused)
                 /* ここから起き上がり */
                 clock->reset();
                 clock->sleep(1);
-                while (clock->now() <= 500) {
+                while (clock->now() <= 1500) {
+                    leftMotor->setPWM(-5);
+                    rightMotor->setPWM(-5);
+                    tail_control(80);
+                }
+                clock->reset();
+                clock->sleep(1);
+                while (clock->now() <= 450) {
                     leftMotor->setPWM(-10);
                     rightMotor->setPWM(-10);
                     if (stairs == 2) {
-                        leftMotor->setPWM(-20);
-                        rightMotor->setPWM(-20);
+                        leftMotor->setPWM(-12);
+                        rightMotor->setPWM(-12);
                     }
                     tail_control(85);
                 }
@@ -761,13 +771,13 @@ void main_task(intptr_t unused)
                 clock->reset();
                 clock->sleep(1);
                 while (clock->now() <= 300) {
-                    leftMotor->setPWM(0);
-                    rightMotor->setPWM(0);
+                    leftMotor->setPWM(-1);
+                    rightMotor->setPWM(-1);
                     if (stairs == 1) {
-                        tail_control(98);
+                        tail_control(96);
                     }
                     else {
-                        tail_control(97);
+                        tail_control(96);
                     }
                 }
                 gyro = gyroSensor->getAnglerVelocity();
@@ -823,7 +833,7 @@ void main_task(intptr_t unused)
 
         if (bt_cmd == 1 || gray == 1)
         {
-            syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, flag:%5d, RGB%3d\r", course_number, distance_now, gyro, gyro_flag, rgb_total);
+            syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, V:%5d, RGB%3d\r", course_number, distance_now, gyro, volt, rgb_total);
             bt_cmd = 0;
         }
 
