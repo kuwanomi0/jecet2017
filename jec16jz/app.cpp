@@ -606,7 +606,7 @@ void main_task(intptr_t unused)
             hard_flag = 3;
         }
         else {
-            if (bt_cmd == 7 || bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
+            if (bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
             {
                 forward = 0; //TODO 4: おまけコマンド停止処理用
             }
@@ -626,7 +626,7 @@ void main_task(intptr_t unused)
         /* ガレージ処理 */
         // if (garage == 1) { /* テスト用 */
         if (garage == 1) {
-            if (distance_now - distance_tmp < 215) {
+            if (distance_now - distance_tmp < 220) {
                 syslog(LOG_NOTICE, "--- garage ---\r");
                 forward = 10;
             }
@@ -842,19 +842,10 @@ void main_task(intptr_t unused)
 
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
-        // balancer.setCommand(forward, turn);   // <1>
-        // balancer.update(gyro, motor_ang_r, motor_ang_l, volt); // <2>
-        // pwm_L = balancer.getPwmRight();       // <3>
-        // pwm_R = balancer.getPwmLeft();        // <3>
-        //
-        // leftMotor->setPWM(pwm_L);
-        // rightMotor->setPWM(pwm_R);
         balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
 
 
         /* ログを送信する処理 */
-        // syslog(LOG_NOTICE, "D:%5d, G:%3d\r", distance_now, gyro);
-        // syslog(LOG_NOTICE, "D:%5d, G:%3d, V:%5d, RGB%3d, 尻尾角度:%d\r", distance_now, gyro, volt, rgb_total, tailMotor->getCount());
         if (bt_cmd == 1 || gray == 1)
         {
             syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, V:%5d, RGB%3d\r", course_number, distance_now, gyro, volt, rgb_total);
