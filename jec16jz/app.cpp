@@ -104,7 +104,7 @@ Distance distance_way;
 
 /* Lコース */
 static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されました これで30.36secでた。
-    { 0,     0,122,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+    { 0,     0, 22,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
     { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
     { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
     { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
@@ -123,7 +123,7 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
 
 /* Rコース */
 static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
-    { 0,     0,122,  0, 0.1400F, 0.0000F, 1.7000F }, //スタート
+    { 0,     0, 22,  0, 0.1400F, 0.0000F, 1.7000F }, //スタート
     { 1,  2240,113,  0, 0.1600F, 0.0002F, 1.6900F }, //大きく右
     { 2,  5400,113,  0, 0.1500F, 0.0001F, 1.8000F }, //左やや直進
     { 3,  6350,110,  0, 0.1660F, 0.0002F, 1.4500F }, //強く左
@@ -399,6 +399,9 @@ void main_task(intptr_t unused)
     * Main loop for the self-balance control algorithm
     */
     int gray = 0;
+    int radioCtl_enable = 0;
+    int balancer_enable = 1;
+    int tail_flag = 0;
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
@@ -649,7 +652,7 @@ void main_task(intptr_t unused)
             gyro_wait = 0;
         }
         // TODO :KAIDAN
-        syslog(LOG_NOTICE, "KAIDAN : %d\r", stairs);
+        // syslog(LOG_NOTICE, "KAIDAN : %d\r", stairs);
         if (gyro_wait == 0 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45 && hard_flag == 1) {
             gyro_flag++;
             if(gyro_flag <= 300/4) {
@@ -840,9 +843,85 @@ void main_task(intptr_t unused)
             stairs = 0;
         }
 
-        /* 倒立振子制御APIを呼び出し、倒立走行するための */
-        /* 左右モータ出力値を得る */
-        balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
+        if (bt_cmd == 'q' && radioCtl_enable == 0) {
+            radioCtl_enable = 1;
+        }
+        else if (bt_cmd == 'q' && radioCtl_enable == 1) {
+            radioCtl_enable = 0;
+        }
+        if (radioCtl_enable == 1) {
+            forward = 0;
+            turn = 0;
+        }
+        if (radioCtl_enable == 1) {
+            /* 遅いラジコン */
+            if (bt_cmd == 'w') {
+                forward = 50;
+                turn = 0;
+            }
+            if (bt_cmd == 's') {
+                forward = -50;
+                turn = 0;
+            }
+            if (bt_cmd == 'a') {
+                forward = 0;
+                turn = 10;
+            }
+            if (bt_cmd == 'd') {
+                forward = 0;
+                turn = -10;
+            }
+            /* 速いラジコン */
+            if (bt_cmd == 'W') {
+                forward = -150;
+                turn = 0;
+            }
+            if (bt_cmd == 'S') {
+                forward = 150;
+                turn = 0;
+            }
+            if (bt_cmd == 'A') {
+                forward = 0;
+                turn = 30;
+            }
+            if (bt_cmd == 'D') {
+                forward = 0;
+                turn = -30;
+            }
+            if (bt_cmd == ' ') {
+                forward = 0;
+                turn = 0;
+            }
+            /* ラジコン尻尾 */
+            if (bt_cmd == '[') {
+                tail_control(tailMotor->getCount() + 1)
+            }
+            if (bt_cmd == ']') {
+                tail_control(tailMotor->getCount() - 1)
+            }
+            /* ラジコン尻尾出し入れ */
+            if (bt_cmd == 'n' && tail_flag == 0) {
+                tail_control(TAIL_ANGLE_STOP);
+                tail_flag = 1;
+            }
+            if (bt_cmd == 'n' && tail_flag == 1) {
+                tail_control(TAIL_ANGLE_DRIVE);
+                tail_flag = 0;
+            }
+            /* バランサー切り替え */
+            if (balancer_enable == 1 && bt_cmd == 'b') {
+                balancer_enable = 0;
+            }
+            if (balancer_enable == 0 && bt_cmd == 'b') {
+                balancer_enable = 1;
+            }
+        }
+
+        if (balancer_enable == 1) {
+            /* 倒立振子制御APIを呼び出し、倒立走行するための */
+            /* 左右モータ出力値を得る */
+            balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
+        }
 
 
         /* ログを送信する処理 */
@@ -989,11 +1068,29 @@ void bt_task(intptr_t unused)
         case 'a':
             bt_cmd = 'a';
             break;
+        case 'W':
+            bt_cmd = 'W';
+            break;
+        case 'S':
+            bt_cmd = 'S';
+            break;
+        case 'D':
+            bt_cmd = 'D';
+            break;
+        case 'A':
+            bt_cmd = 'A';
+            break;
         case '@':
             bt_cmd = '@';
             break;
         case '\r':
             bt_cmd = '\r';
+            break;
+        case 'q':
+            bt_cmd = 'q';
+            break;
+        case ' ':
+            bt_cmd = ' ';
             break;
         default:
             break;
