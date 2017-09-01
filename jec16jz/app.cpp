@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define PIDX               1.00  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE     800  /* 難所の処理を有効にする距離 */
+#define GOOL_DISTANCE     11850  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
@@ -451,10 +451,10 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 250) {
+            while (clock->now() <= 200) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(96);
+                tail_control(96.5);
             }
 
             /*
