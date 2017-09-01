@@ -56,6 +56,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define TAIL_ANGLE_ROKET      99 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
+#define TAIL_ANGLE_FIX         0 /* 尻尾のずれ修正用 */
 #define KP_TAIL             2.7F /* 尻尾用定数P */
 #define KI_TAIL            0.02F /* 尻尾用定数I */
 #define KD_TAIL            14.0F /* 尻尾用定数D */
@@ -65,10 +66,8 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* サウンド */
 #define NOTE_C4 (261.63)
-#define NOTE_B6 (1975.53)
 #define MY_SOUND_MANUAL_STOP (100)
 #define VOLUME 50
-#define TONE NOTE_C4
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -111,20 +110,20 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
     { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
     { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-    {11, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
+    {11, 10700, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
     {12, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
-    {13, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+    {13, 11766, 25,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
 /* Rコース */
 static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
-    { 0,     0,122,  0, 0.1400F, 0.0000F, 1.7000F }, //スタート
-    { 1,  2240,113,  0, 0.1600F, 0.0002F, 1.6900F }, //大きく右
+    { 0,     0,122,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
+    { 1,  2240,113,  0, 0.1600F, 0.0002F, 1.9000F }, //大きく右
     { 2,  5400,113,  0, 0.1500F, 0.0001F, 1.8000F }, //左やや直進
     { 3,  6350,110,  0, 0.1660F, 0.0002F, 1.4500F }, //強く左
-    { 4,  7150,110,  0, 0.1600F, 0.0002F, 1.6000F }, //緩やかに大きく右
-    { 5,  8750,122,  0, 0.1500F, 0.0000F, 1.5000F }, //直GOOLまで
+    { 4,  7150,110,  0, 0.1600F, 0.0002F, 1.7000F }, //緩やかに大きく右
+    { 5,  8750,122,  0, 0.0500F, 0.0000F, 1.6000F }, //直GOOLまで
     { 6, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 7, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 8, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
@@ -152,23 +151,23 @@ void main_task(intptr_t unused)
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
     rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
-    int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
-    int count = 0;  //TODO :2 コース関連 だいぶ改善されました
-    int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
-    int tail_i = 0; //TODO :4 停止用コマンド
-    int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
-    int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
-    uint16_t rgb_total = RGB_TARGET;
-    uint16_t rgb_before;
-    int gyro_flag = 0;
-    int gyro_wait = 0;
-    int8_t tail_flags = 0;
-    int stairs = 1;
-    int8_t garage = 0;
-    int garage_cnt = 0;
-    int distance_tmp = 0;
-    int8_t hard_flag = 0;
-    Course* mCourse = NULL;
+    int       course_number = 0; //TODO :2 コース関連 だいぶ改善されました
+    int       count = 0;  //TODO :2 コース関連 だいぶ改善されました
+    int       roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
+    int       tail_i = 0; //TODO :4 停止用コマンド
+    int       forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
+    int       turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
+    uint16_t  rgb_total = RGB_TARGET;
+    uint16_t  rgb_before;
+    int       gyro_flag = 0;
+    int       gyro_wait = 0;
+    int8_t    tail_flags = 0;
+    int       stairs = 1;
+    int8_t    garage = 0;
+    int       garage_cnt = 0;
+    int       distance_tmp = 0;
+    int8_t    hard_flag = 0;
+    Course*   mCourse = NULL;
 
     /* 各オブジェクトを生成・初期化する */
     touchSensor = new TouchSensor(PORT_1);
@@ -187,7 +186,7 @@ void main_task(intptr_t unused)
     ev3_lcd_draw_string("             M", 0, CALIB_FONT_HEIGHT*2);
 
     /* 尻尾モーターのリセット */
-    for(int i = 0; i < 300; i++){
+    for(int i = 0; i < 500; i++){
         tailMotor->setPWM(-3);
         clock->wait(1);
     }
@@ -204,9 +203,7 @@ void main_task(intptr_t unused)
 
     /* スタート待機 */
     double angle = (double)TAIL_ANGLE_STAND_UP;
-    int rotation_flag = 0;
-    int run_flag = 0;
-    int ctlspeed;
+
     while(1)
     {
         tail_control(angle); /* 完全停止用角度に制御、調整も可 */
@@ -230,48 +227,6 @@ void main_task(intptr_t unused)
             break; /* タッチセンサが押された */
         }
 
-        /* ラジコン操作 */
-        if (bt_cmd == 'd' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(-17);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 'a' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(-18);
-            rightMotor->setPWM(17);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 'w' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(18);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 's' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(-18);
-            rightMotor->setPWM(-18);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if ((bt_cmd == 'd' ||
-             bt_cmd == 'a' ||
-             bt_cmd == 'w' ||
-             bt_cmd == 's') && rotation_flag == 1) {
-            ev3_led_set_color(LED_GREEN);
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
-
-            bt_cmd = 0;
-            rotation_flag = 0;
-        }
-
-
         // スタート前の尻尾調整
         if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == ']') {
             angle -= 0.1;
@@ -284,89 +239,9 @@ void main_task(intptr_t unused)
             syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
         }
 
+        /* 尻尾の状態表示 */
         if (bt_cmd == '@') {
             syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
-        }
-
-        // 回転
-        if (bt_cmd == 9 && rotation_flag == 0) {
-            syslog(LOG_NOTICE, "DEBUG, 回転\r");
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(-18);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 9 && rotation_flag == 1) {
-            syslog(LOG_NOTICE, "DEBUG, 回転停止\r");
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
-            bt_cmd = 0;
-            rotation_flag = 0;
-        }
-
-        // ラジコン操作
-        if (bt_cmd == 't' && run_flag == 0) {
-            syslog(LOG_NOTICE, "DEBUG, 前進\r");
-            leftMotor->setPWM(10);
-            rightMotor->setPWM(10);
-            bt_cmd = 0;
-            run_flag = 1;
-        }
-        if (bt_cmd == 't' && run_flag == 1) {
-            syslog(LOG_NOTICE, "DEBUG, 前進停止\r");
-            for (int i = 50; i >= 0; i--) {
-                leftMotor->setPWM(i);
-                rightMotor->setPWM(i);
-            }
-            bt_cmd = 0;
-            run_flag = 0;
-        }
-        // ラジコン操作2
-        if (bt_cmd == 'w') {    // 前進
-            ctlspeed = 10;  // ラジコンのスピード
-            while (ctlspeed >= 0) {
-                leftMotor->setPWM(ctlspeed);
-                rightMotor->setPWM(ctlspeed);
-                ctlspeed--;
-                // 以下遅延処理
-                clock->reset();
-                while (clock->now() < 500) {
-                    // 遅延
-                }
-            }
-            bt_cmd = 0;
-        }
-        if (bt_cmd == 's') {    // 後進
-            ctlspeed = -10;  // ラジコンのスピード
-            while (ctlspeed <= 0) {
-                leftMotor->setPWM(ctlspeed);
-                rightMotor->setPWM(ctlspeed);
-                ctlspeed++;
-                // 以下遅延処理
-                clock->reset();
-                while (clock->now() < 500) {
-                    // 遅延
-                }
-            }
-            bt_cmd = 0;
-        }
-        if (bt_cmd == 'd') {
-            turn = 10;
-            clock->reset();
-            while (clock->now() < 500) {
-                // 何もしない
-            }
-            turn = 0;
-            bt_cmd = 0;
-        }
-        if (bt_cmd == 'a') {
-            turn = -10;
-            clock->reset();
-            while (clock->now() < 500) {
-                // 何もしない
-            }
-            turn = 0;
-            bt_cmd = 0;
         }
 
         clock->sleep(10); /* 10msecウェイト */
@@ -430,7 +305,7 @@ void main_task(intptr_t unused)
          300 < (rgb_level.r + rgb_level.g + rgb_level.b) && hard_flag == 3) {
             gray = 1;
             ev3_speaker_set_volume(VOLUME);
-            ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
+            ev3_speaker_play_tone(NOTE_C4, MY_SOUND_MANUAL_STOP);
         }
         else {
             gray = 0;
@@ -451,6 +326,8 @@ void main_task(intptr_t unused)
             pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
             count++;
         }
+
+        /* 難所を有効にする処理 */
         if (distance_now >= GOOL_DISTANCE && hard_flag == 0) {
             hard_flag = 1;
         }
@@ -459,7 +336,7 @@ void main_task(intptr_t unused)
         if (sonar_alert() == 1 && hard_flag == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
             ev3_speaker_set_volume(VOLUME);
-            ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
+            ev3_speaker_play_tone(NOTE_C4, MY_SOUND_MANUAL_STOP);
 
             for (int angle = 79; angle >= 70; angle--)
             {
@@ -484,7 +361,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 7200) {
                 leftMotor->setPWM(4);
                 rightMotor->setPWM(4);
-                tail_control(67);
+                tail_control(65);
             }
             /* 一度停止して尻尾の調整 */
             clock->reset();
@@ -492,7 +369,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(67);
+                tail_control(65);
             }
             /* バックしてくぐる */
             clock->reset();
@@ -500,7 +377,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 15000) {
                 leftMotor->setPWM(-2);
                 rightMotor->setPWM(-2);
-                tail_control(67);
+                tail_control(65);
             }
             /* 前進して2回目のくぐり */
             clock->reset();
@@ -512,7 +389,7 @@ void main_task(intptr_t unused)
                 pwmR = 5 + (LOOK_UP_COLOR - rgb_level.r) * 0.4;
                 leftMotor->setPWM(pwmL);
                 rightMotor->setPWM(pwmR);
-                tail_control(67);
+                tail_control(65);
             }
 
             /* ここから起き上がり */
@@ -588,9 +465,8 @@ void main_task(intptr_t unused)
             hard_flag = 3;
         }
         else {
-            if (bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
-            {
-                forward = 0; //TODO 4: おまけコマンド停止処理用
+            if (bt_cmd == 6) { //TODO 4: おまけコマンド停止処理用
+                forward = 0;   //TODO 4: おまけコマンド停止処理用
             }
             else {
                 forward = forward_course * FORWARD_X; /* 前進命令 */
@@ -608,7 +484,6 @@ void main_task(intptr_t unused)
         /* ガレージ処理 */
         if (garage == 1) {
             if (distance_now - distance_tmp < 215) {
-                syslog(LOG_NOTICE, "--- garage ---\r");
                 forward = 10;
             }
             else if (garage_cnt <= 240/4) {
@@ -617,7 +492,6 @@ void main_task(intptr_t unused)
                 garage_cnt++;
             }
             else {
-                syslog(LOG_NOTICE, " S T O P   電圧 %d\r", volt);
                 forward = -40;
                 turn = 0;
                 bt_cmd = 6;
@@ -625,17 +499,20 @@ void main_task(intptr_t unused)
         }
 
 
-        if (gyro_wait >= 3000/4) {
+        if (gyro_wait >= 5000/4) {
             gyro_wait = 0;
         }
         // TODO :階段の処理を決め打ちで行うのか、ライン検知による回転で行うのか考えておく
         if (gyro_wait == 0 && hard_flag == 1 && (gyro >= 70 || gyro_flag >= 1) && roket >= 45) {
             gyro_flag++;
             if(gyro_flag <= 300/4) {
-                forward = 90;
+                forward = 95;
                 if (stairs == 2) {
                     forward = 100;
                     turn = 0;
+                }
+                else if (stairs ==1) {
+                    leftMotor->setPWM(1);
                 }
             }
             else if(gyro_flag <= 2000/4) {
@@ -649,6 +526,7 @@ void main_task(intptr_t unused)
             else if(gyro_flag <= 4000/4) {
                 forward = -3;
                 turn = 0;
+                rightMotor->setPWM(1);
                 if (stairs == 2) {
                     forward = -2;
                     turn = 0;
@@ -681,8 +559,8 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(-15);
                     rightMotor->setPWM(-15);
                     if (stairs == 2) {
-                        leftMotor->setPWM(10);
-                        rightMotor->setPWM(10);
+                        leftMotor->setPWM(20);
+                        rightMotor->setPWM(20);
                     }
                     tail_control(80);
                 }
@@ -696,7 +574,7 @@ void main_task(intptr_t unused)
                 if (stairs ==2) {
                     clock->reset();
                     clock->sleep(1);
-                    while (clock->now() <= 850) {
+                    while (clock->now() <= 800) {
                         leftMotor->setPWM(80);
                         rightMotor->setPWM(-80);
                         tail_control(80);
@@ -721,7 +599,6 @@ void main_task(intptr_t unused)
                             pwmR = 2 + (rgb_level.r - STAIRS_COLOR + 3) * 0.9;
                             pwmL = 2 + (STAIRS_COLOR + 3 - rgb_level.r) * 0.9;
                         }
-                        // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
                         leftMotor->setPWM(pwmL);
                         rightMotor->setPWM(pwmR);
                         tail_control(80);
@@ -739,8 +616,8 @@ void main_task(intptr_t unused)
                 clock->reset();
                 clock->sleep(1);
                 while (clock->now() <= 450) {
-                    leftMotor->setPWM(-10);
-                    rightMotor->setPWM(-10);
+                    leftMotor->setPWM(-5);
+                    rightMotor->setPWM(-5);
                     if (stairs == 2) {
                         leftMotor->setPWM(-12);
                         rightMotor->setPWM(-12);
@@ -774,10 +651,10 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(-1);
                     rightMotor->setPWM(-1);
                     if (stairs == 1) {
-                        tail_control(96);
+                        tail_control(97);
                     }
                     else {
-                        tail_control(96);
+                        tail_control(97);
                     }
                 }
                 gyro = gyroSensor->getAnglerVelocity();
@@ -798,10 +675,12 @@ void main_task(intptr_t unused)
             gyro_wait++;
         }
 
+        /* 2回目の開店後の待機 */
         if (stairs >= 3) {
             turn = -turn;
         }
 
+        /* 階段降りる */
         if(stairs == 3 ) {
             forward = 2;
             turn = 3;
@@ -831,7 +710,7 @@ void main_task(intptr_t unused)
 
         /* ログを送信する処理 */
 
-        if (bt_cmd == 1 || gray == 1)
+        if (bt_cmd == 1 || bt_cmd == 2)
         {
             syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, V:%5d, RGB%3d\r", course_number, distance_now, gyro, volt, rgb_total);
             bt_cmd = 0;
@@ -844,6 +723,7 @@ void main_task(intptr_t unused)
                 tail_control(TAIL_ANGLE_STOP);
             }
             else {
+                syslog(LOG_NOTICE, " S T O P   電圧 %d\r", volt);
                 break;
             }
         }
@@ -906,7 +786,7 @@ static int32_t sonar_alert(void)
 //*****************************************************************************
 static void tail_control(int32_t angle)
 {
-    int pwm = (int)pid_tail.calcControl(angle - tailMotor->getCount()); /* PID制御 */
+    int pwm = (int)pid_tail.calcControl(angle - tailMotor->getCount() - TAIL_ANGLE_FIX); /* PID制御 */
     /* PWM出力飽和処理 */
     if (pwm > PWM_ABS_MAX)
     {
@@ -951,29 +831,11 @@ void bt_task(intptr_t unused)
         case '6':
             bt_cmd = 6;
             break;
-        case '9':
-            bt_cmd = 9;
-            break;
         case '[':   // 上
             bt_cmd = '[';
             break;
         case ']':   // 下
             bt_cmd = ']';
-            break;
-        case 't':
-            bt_cmd = 't';
-            break;
-        case 'w':
-            bt_cmd = 'w';
-            break;
-        case 's':
-            bt_cmd = 's';
-            break;
-        case 'd':
-            bt_cmd = 'd';
-            break;
-        case 'a':
-            bt_cmd = 'a';
             break;
         case '@':
             bt_cmd = '@';
