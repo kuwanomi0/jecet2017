@@ -402,6 +402,7 @@ void main_task(intptr_t unused)
     int radioCtl_enable = 0;
     int balancer_enable = 1;
     int tail_flag = 0;
+    int tailCtl_enable = 0;
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
@@ -417,6 +418,9 @@ void main_task(intptr_t unused)
 
         /* 尻尾の制御 */
         if (bt_cmd == 6) {  // TODO :4 停止用コマンド
+        }
+        else if (tailCtl_enable == 0) {
+            // if文をすり抜ける
         }
         else if(roket++ < 25) {  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
             tail_control(TAIL_ANGLE_ROKET); /* ロケット走行用角度に制御 */
@@ -854,6 +858,7 @@ void main_task(intptr_t unused)
             turn = 0;
         }
         if (radioCtl_enable == 1) {
+            syslog(LOG_NOTICE, "%d,%d,%d,%d,%d,%d,%d\r", rgb_level.r, rgb_level.g, rgb_level.b, rgb_level.r + rgb_level.g + rgb_level.b, distance_now, gyro, volt);
             /* 遅いラジコン */
             if (bt_cmd == 'w') {
                 forward = 50;
@@ -865,11 +870,11 @@ void main_task(intptr_t unused)
             }
             if (bt_cmd == 'a') {
                 forward = 0;
-                turn = 10;
+                turn = -10;
             }
             if (bt_cmd == 'd') {
                 forward = 0;
-                turn = -10;
+                turn = 10;
             }
             /* 速いラジコン */
             if (bt_cmd == 'W') {
@@ -882,11 +887,11 @@ void main_task(intptr_t unused)
             }
             if (bt_cmd == 'A') {
                 forward = 0;
-                turn = 30;
+                turn = -30;
             }
             if (bt_cmd == 'D') {
                 forward = 0;
-                turn = -30;
+                turn = 30;
             }
             if (bt_cmd == ' ') {
                 forward = 0;
@@ -894,10 +899,10 @@ void main_task(intptr_t unused)
             }
             /* ラジコン尻尾 */
             if (bt_cmd == '[') {
-                tail_control(tailMotor->getCount() + 1)
+                tail_control(tailMotor->getCount() + 1);
             }
             if (bt_cmd == ']') {
-                tail_control(tailMotor->getCount() - 1)
+                tail_control(tailMotor->getCount() - 1);
             }
             /* ラジコン尻尾出し入れ */
             if (bt_cmd == 'n' && tail_flag == 0) {
@@ -907,6 +912,7 @@ void main_task(intptr_t unused)
             if (bt_cmd == 'n' && tail_flag == 1) {
                 tail_control(TAIL_ANGLE_DRIVE);
                 tail_flag = 0;
+                tailCtl_enable = 1;
             }
             /* バランサー切り替え */
             if (balancer_enable == 1 && bt_cmd == 'b') {
@@ -1091,6 +1097,12 @@ void bt_task(intptr_t unused)
             break;
         case ' ':
             bt_cmd = ' ';
+            break;
+        case 'b':
+            bt_cmd = 'b';
+            break;
+        case 'n':
+            bt_cmd = 'n';
             break;
         default:
             break;
