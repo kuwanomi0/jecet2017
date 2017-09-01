@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define PIDX               1.00  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE     11800  /* 難所の処理を有効にする距離 */
+#define GOOL_DISTANCE     800  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
@@ -111,8 +111,8 @@ static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されま�
     { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
     {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
     {11, 10700, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-    {12, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
-    {13, 11766, 25,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
+    {12, 11550, 30,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {13, 11800, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
@@ -127,8 +127,8 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
     { 6, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 7, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 8, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-    { 9, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {10, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+    { 9, 12000, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {10, 12275, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
@@ -358,7 +358,7 @@ void main_task(intptr_t unused)
             /* 前進一回目のくぐり */
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 7200) {
+            while (clock->now() <= 7500) {
                 leftMotor->setPWM(4);
                 rightMotor->setPWM(4);
                 tail_control(65);
@@ -374,7 +374,7 @@ void main_task(intptr_t unused)
             /* バックしてくぐる */
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 15000) {
+            while (clock->now() <= 15500) {
                 leftMotor->setPWM(-2);
                 rightMotor->setPWM(-2);
                 tail_control(65);
@@ -398,7 +398,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 200) {
                 leftMotor->setPWM(-20);
                 rightMotor->setPWM(-20);
-                tail_control(73);
+                tail_control(70);
             }
             clock->reset();
             clock->sleep(1);
@@ -430,6 +430,13 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
+            while (clock->now() <= 200) {
+                leftMotor->setPWM(-15);
+                rightMotor->setPWM(-15);
+                tail_control(93);
+            }
+            clock->reset();
+            clock->sleep(1);
             while (clock->now() <= 1000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
@@ -444,7 +451,7 @@ void main_task(intptr_t unused)
             }
             clock->reset();
             clock->sleep(1);
-            while (clock->now() <= 100) {
+            while (clock->now() <= 250) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
                 tail_control(96);
@@ -461,7 +468,7 @@ void main_task(intptr_t unused)
 
             /* ジャイロセンサーリセット */
             gyroSensor->reset();
-            balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */
+            balancer.init(-1); /* 倒立振子API初期化 */
             hard_flag = 3;
         }
         else {
@@ -515,6 +522,9 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(1);
                 }
             }
+            else if(gyro_flag <= 1500/4 && stairs == 1) {
+                forward = 0;
+            }
             else if(gyro_flag <= 2000/4) {
                 forward = 0;
                 if (stairs == 2) {
@@ -551,6 +561,10 @@ void main_task(intptr_t unused)
                 while (clock->now() <= 1000) {
                     leftMotor->setPWM(0);
                     rightMotor->setPWM(0);
+                    if (stairs == 2) {
+                        leftMotor->setPWM(5);
+                        rightMotor->setPWM(5);
+                    }
                     tail_control(80);
                 }
                 clock->reset();
@@ -559,8 +573,8 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(-15);
                     rightMotor->setPWM(-15);
                     if (stairs == 2) {
-                        leftMotor->setPWM(20);
-                        rightMotor->setPWM(20);
+                        leftMotor->setPWM(25);
+                        rightMotor->setPWM(25);
                     }
                     tail_control(80);
                 }
@@ -574,7 +588,7 @@ void main_task(intptr_t unused)
                 if (stairs ==2) {
                     clock->reset();
                     clock->sleep(1);
-                    while (clock->now() <= 800) {
+                    while (clock->now() <= 900) {
                         leftMotor->setPWM(80);
                         rightMotor->setPWM(-80);
                         tail_control(80);
@@ -651,10 +665,10 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(-1);
                     rightMotor->setPWM(-1);
                     if (stairs == 1) {
-                        tail_control(97);
+                        tail_control(96);
                     }
                     else {
-                        tail_control(97);
+                        tail_control(96);
                     }
                 }
                 gyro = gyroSensor->getAnglerVelocity();
