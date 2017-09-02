@@ -41,12 +41,12 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET          -1  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          365  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX               1.00  /* PID倍率 */
 #define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE     11850  /* 難所の処理を有効にする距離 */
+#define GOOL_DISTANCE     11820  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
@@ -56,7 +56,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define TAIL_ANGLE_ROKET      99 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
-#define TAIL_ANGLE_FIX         0 /* 尻尾のずれ修正用 */
+#define TAIL_ANGLE_FIX      -0.5 /* 尻尾のずれ修正用 */
 #define KP_TAIL             2.7F /* 尻尾用定数P */
 #define KI_TAIL            0.02F /* 尻尾用定数I */
 #define KD_TAIL            14.0F /* 尻尾用定数D */
@@ -127,14 +127,16 @@ static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されま�
     { 6, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 7, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
     { 8, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-    { 9, 12000, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {10, 12275, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
+    { 9, 11250, 50,  0, 0.1200F, 0.0002F, 1.5000F }, //左
+    {10, 12000, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
+    {11, 12275, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
     {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
 };
 
 /* デフォルト */
 static Course gCourse[] {
     { 0,     0, 30,  0, 0.1900F, 0.0001F, 1.4000F }, //スタート
+    // { 0,     0, 30,  0, 0.0000F, 0.0000F, 0.0000F }, //スタート
     { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
 };
 
@@ -342,8 +344,8 @@ void main_task(intptr_t unused)
             {
                 if (ev3_button_is_pressed(BACK_BUTTON)) break;
                 if(angle >= 77){
-                    leftMotor->setPWM(16);
-                    rightMotor->setPWM(16);
+                    leftMotor->setPWM(17);
+                    rightMotor->setPWM(17);
                 }else{
                     leftMotor->setPWM(0);
                     rightMotor->setPWM(0);
@@ -361,7 +363,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 7500) {
                 leftMotor->setPWM(4);
                 rightMotor->setPWM(4);
-                tail_control(65);
+                tail_control(66);
             }
             /* 一度停止して尻尾の調整 */
             clock->reset();
@@ -369,7 +371,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 2000) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(65);
+                tail_control(66);
             }
             /* バックしてくぐる */
             clock->reset();
@@ -377,7 +379,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 15500) {
                 leftMotor->setPWM(-2);
                 rightMotor->setPWM(-2);
-                tail_control(65);
+                tail_control(66);
             }
             /* 前進して2回目のくぐり */
             clock->reset();
@@ -389,7 +391,7 @@ void main_task(intptr_t unused)
                 pwmR = 5 + (LOOK_UP_COLOR - rgb_level.r) * 0.4;
                 leftMotor->setPWM(pwmL);
                 rightMotor->setPWM(pwmR);
-                tail_control(65);
+                tail_control(66);
             }
 
             /* ここから起き上がり */
@@ -431,8 +433,8 @@ void main_task(intptr_t unused)
             clock->reset();
             clock->sleep(1);
             while (clock->now() <= 200) {
-                leftMotor->setPWM(-15);
-                rightMotor->setPWM(-15);
+                leftMotor->setPWM(-8);
+                rightMotor->setPWM(-8);
                 tail_control(93);
             }
             clock->reset();
@@ -454,7 +456,7 @@ void main_task(intptr_t unused)
             while (clock->now() <= 200) {
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(0);
-                tail_control(96.5);
+                tail_control(96);
             }
 
             /*
