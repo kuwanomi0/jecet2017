@@ -52,8 +52,8 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
 
 /* 尻尾に関するマクロ */
-#define TAIL_ANGLE_STAND_UP   97 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_ROKET      99 /* ロケットダッシュ時の角度[度] */
+#define TAIL_ANGLE_STAND_UP   93 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_ROKET      94 /* ロケットダッシュ時の角度[度] */
 #define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
 #define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
 #define TAIL_ANGLE_FIX      -0.5 /* 尻尾のずれ修正用 */
@@ -652,14 +652,14 @@ void main_task(intptr_t unused)
                 while (clock->now() <= 2000) {
                     leftMotor->setPWM(0);
                     rightMotor->setPWM(0);
-                    tail_control(93);
+                    tail_control(91);
                 }
                 clock->reset();
                 clock->sleep(1);
                 while (clock->now() <= 2000) {
                     leftMotor->setPWM(0);
                     rightMotor->setPWM(0);
-                    tail_control(95);
+                    tail_control(92);
                 }
                 clock->reset();
                 clock->sleep(1);
@@ -667,10 +667,10 @@ void main_task(intptr_t unused)
                     leftMotor->setPWM(-1);
                     rightMotor->setPWM(-1);
                     if (stairs == 1) {
-                        tail_control(96);
+                        tail_control(93);
                     }
                     else {
-                        tail_control(96);
+                        tail_control(93);
                     }
                 }
                 gyro = gyroSensor->getAnglerVelocity();
